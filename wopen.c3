@@ -3,14 +3,14 @@ import std::io::path;
 import win;
 
 fn int main(int argc, char** argv) {
-	if (argc < 2) {
-		Path exe_name = path::new(allocator::heap(), ZString.str_view((ZString)argv[0]))!!;
-		io::eprintfn("Usage: %s <FILE_PATH>", exe_name.basename());
-		return 1;
-	}
+    if (argc < 2) {
+        Path exe_name = path::new(allocator::heap(), ZString.str_view((ZString)argv[0]))!!;
+        io::eprintfn("Usage: %s <FILE_PATH>", exe_name.basename());
+        return 1;
+    }
 
-	String target_name = ZString.str_view((ZString)argv[1]);
-	target_name = path::normalize(target_name)!!;
+    String target_name = ZString.str_view((ZString)argv[1]);
+    target_name = path::normalize(target_name)!!;
 
     Path cwd = path::cwd(allocator::heap())!!;
 
@@ -20,6 +20,6 @@ fn int main(int argc, char** argv) {
         parameter.append(" ");
     }
 
-	return win::shell_exec(target_name, cwd.str_view(), parameter.str_view()) ? 0 : 1;
+    return win::shell_exec(target_name, cwd.str_view(), parameter.str_view()) ? 0 : 1;
 }
 

@@ -10,12 +10,12 @@ import std::os::win32;
 const SHOW_CMD = 1; 
 
 extern fn win32::Win32_HINSTANCE shellExecuteW(
-	win32::Win32_HWND hwnd, 
-	win32::Win32_LPCWSTR lpOperation, 
-	win32::Win32_LPCWSTR lpFile, 
-	win32::Win32_LPCWSTR lpParameters, 
-	win32::Win32_LPCWSTR lpDirectory, 
-	win32::Win32_INT32 nShowCmd,
+    win32::Win32_HWND hwnd, 
+    win32::Win32_LPCWSTR lpOperation, 
+    win32::Win32_LPCWSTR lpFile, 
+    win32::Win32_LPCWSTR lpParameters, 
+    win32::Win32_LPCWSTR lpDirectory, 
+    win32::Win32_INT32 nShowCmd,
 ) @extern("ShellExecuteW");
 
 fn bool shell_exec(String target, String work_dir, String parameters) {
@@ -23,9 +23,9 @@ fn bool shell_exec(String target, String work_dir, String parameters) {
     io::printfn("work_dir: %s", work_dir);
     io::printfn("parameters: %s", parameters);
 
-	$if env::WIN32:
-		String operation = "open";
-		win32::Win32_HINSTANCE res = shellExecuteW(
+    $if env::WIN32:
+        String operation = "open";
+        win32::Win32_HINSTANCE res = shellExecuteW(
             null, // hwnd
             operation.to_temp_utf16()!!, // lpOperation
             target.to_temp_utf16()!!, // lpFile
@@ -33,14 +33,14 @@ fn bool shell_exec(String target, String work_dir, String parameters) {
             work_dir.to_temp_utf16()!!, // lpDirectory
             SHOW_CMD, // nShowCmd
         );
-		if (res > (win32::Win32_HINSTANCE)32) {
-			return true;
-		}
+        if (res > (win32::Win32_HINSTANCE)32) {
+            return true;
+        }
 
-		io::eprintfn("Failed to open file (%d)", (int)(iptr)res);
-		return false;
-	$else
-		io::eprintfn("Only work in Windows");
-		return false;
-	$endif
+        io::eprintfn("Failed to open file (%d)", (int)(iptr)res);
+        return false;
+    $else
+        io::eprintfn("Only work in Windows");
+        return false;
+    $endif
 }
