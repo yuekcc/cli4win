@@ -1,8 +1,9 @@
 import std::io;
 import std::io::path;
 import win;
+import std::os::win32;
 
-fn int main(int argc, char** argv) 
+fn int main(int argc, char** argv)
 {
     if (argc < 2)
     {
@@ -23,6 +24,6 @@ fn int main(int argc, char** argv)
         parameter.append(" ");
     }
 
-    return win::shell_exec(target_name, cwd.str_view(), parameter.str_view()) ? 0 : 1;
+    return win::shell_exec(cwd.str_view(), target_name, parameter.str_view()) ? 0 : 1;
 }
 

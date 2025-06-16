@@ -1,0 +1,9 @@
+{
+    "command": "python",
+    "changeDir": true,
+    "args": [
+        "test.py",
+        "-C",
+        "$CWD"
+    ]
+}
