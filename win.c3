@@ -19,9 +19,9 @@ extern fn win32::Win32_HINSTANCE shellExecuteW(
 ) @extern("ShellExecuteW");
 
 fn bool shell_exec(String target, String work_dir, String parameters) {
-    io::printfn("target: %s", target);
-    io::printfn("work_dir: %s", work_dir);
-    io::printfn("parameters: %s", parameters);
+    // io::printfn("target: %s", target);
+    // io::printfn("work_dir: %s", work_dir);
+    // io::printfn("parameters: %s", parameters);
 
     $if env::WIN32:
         String operation = "open";
