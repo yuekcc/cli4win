@@ -2,8 +2,10 @@ import std::io;
 import std::io::path;
 import win;
 
-fn int main(int argc, char** argv) {
-    if (argc < 2) {
+fn int main(int argc, char** argv) 
+{
+    if (argc < 2)
+    {
         Path exe_name = path::new(allocator::heap(), ZString.str_view((ZString)argv[0]))!!;
         io::eprintfn("Usage: %s <FILE_PATH>", exe_name.basename());
         return 1;
@@ -15,7 +17,8 @@ fn int main(int argc, char** argv) {
     Path cwd = path::cwd(allocator::heap())!!;
 
     DString parameter = dstring::new(allocator::heap());
-    for (usz i = 2; i < argc; i++) {
+    for (usz i = 2; i < argc; i++)
+    {
         parameter.append(ZString.str_view((ZString)argv[i]));
         parameter.append(" ");
     }

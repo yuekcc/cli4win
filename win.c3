@@ -18,7 +18,8 @@ extern fn win32::Win32_HINSTANCE shellExecuteW(
     win32::Win32_INT32 nShowCmd,
 ) @extern("ShellExecuteW");
 
-fn bool shell_exec(String target, String work_dir, String parameters) {
+fn bool shell_exec(String target, String work_dir, String parameters) 
+{
     // io::printfn("target: %s", target);
     // io::printfn("work_dir: %s", work_dir);
     // io::printfn("parameters: %s", parameters);
@@ -33,7 +34,9 @@ fn bool shell_exec(String target, String work_dir, String parameters) {
             work_dir.to_temp_utf16()!!, // lpDirectory
             SHOW_CMD, // nShowCmd
         );
-        if (res > (win32::Win32_HINSTANCE)32) {
+
+        if (res > (win32::Win32_HINSTANCE)32) 
+        {
             return true;
         }
 
