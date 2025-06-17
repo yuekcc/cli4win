@@ -7,15 +7,9 @@ import std::os::win32;
 
 import win;
 
-fn int main(
-    Win32_HINSTANCE hInstance,
-    Win32_HINSTANCE hPrevInstance,
-    String[] argv,
-    int nCmdShow
-) @winmain
+fn int real_main(int argc, String arg0)
 {
-    int argc = argv.len;
-    Path exe_name = path::new(allocator::heap(), ZString.str_view((ZString)argv[0]))!!;
+    Path exe_name = path::new(allocator::heap(), arg0)!!;
     Path full_path = exe_name.absolute(allocator::heap())!!;
     String install_dir = full_path.dirname();
 
@@ -28,7 +22,7 @@ fn int main(
     Path cwd = path::cwd(allocator::heap())!!;
 
     Object* config = json::parse(allocator::heap(), &config_file)!!;
-    String command = config.get_string("command")!!;
+    String command = path::normalize(config.get_string("command")!!)!!;
     bool change_dir = config.get_bool("changeDir")!!;
     
     DString flags = dstring::new(allocator::heap());
@@ -44,9 +38,9 @@ fn int main(
         flags.append(" ");
     }
 
-    // io::printfn("cwd: %s", cwd.str_view());
-    // io::printfn("command: %s", command);
-    // io::printfn("flags: %s", flags.str_view());
+    io::printfn("cwd: %s", cwd.str_view());
+    io::printfn("command: %s", command);
+    io::printfn("flags: %s", flags.str_view());
 
      win::shell_exec(
         change_dir ? install_dir : cwd.str_view(), 
@@ -55,4 +49,22 @@ fn int main(
     );
 
     return 0;
+}
+
+// fn int main(int argc, char** argv)
+// {
+//     String arg0 = ZString.str_view((ZString)argv[0]);
+//     return real_main(argc, arg0);
+// }
+
+fn int main(
+    Win32_HINSTANCE hInstance,
+    Win32_HINSTANCE hPrevInstance,
+    String[] argv,
+    int nCmdShow
+) @winmain
+{
+    int argc = argv.len;
+    String arg0 = argv[0];
+    return real_main(argc, arg0);
 }
