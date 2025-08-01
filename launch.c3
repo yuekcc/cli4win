@@ -9,8 +9,8 @@ import win;
 
 fn int real_main(int argc, String arg0)
 {
-    Path exe_name = path::new(allocator::heap(), arg0)!!;
-    Path full_path = exe_name.absolute(allocator::heap())!!;
+    Path exe_name = path::new(allocator::mem, arg0)!!;
+    Path full_path = exe_name.absolute(allocator::mem)!!;
     String install_dir = full_path.dirname();
 
     String config_path = path::normalize(string::tformat("%s/%s.json", install_dir, exe_name.basename()))!!;
@@ -19,13 +19,13 @@ fn int real_main(int argc, String arg0)
     File config_file = file::open(config_path, "r")!!;
     defer config_file.close()!!;
 
-    Path cwd = path::cwd(allocator::heap())!!;
+    Path cwd = path::cwd(allocator::mem)!!;
 
-    Object* config = json::parse(allocator::heap(), &config_file)!!;
+    Object* config = json::parse(allocator::mem, &config_file)!!;
     String command = path::normalize(config.get_string("command")!!)!!;
     bool change_dir = config.get_bool("changeDir")!!;
     
-    DString flags = dstring::new(allocator::heap());
+    DString flags = dstring::new(allocator::mem);
     for (usz i = 0; i < config.get("args").get_len()!!; i++)
     {
         String flag = config.get("args").get_string_at(i)!!;
