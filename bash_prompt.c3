@@ -47,3 +47,6 @@ fn int main(int argc, char** argv)
     io::print("\n\r");
     return 0;
 }
+
+// TODO 实现 git 调用实现
+// TODO 支持 BP_ENV_XXXX 环境变量展示
