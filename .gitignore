@@ -2,3 +2,6 @@
 *.exe
 *.lib
 *.pdb
+
+.vscode
+.idea
