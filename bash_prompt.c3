@@ -2,6 +2,7 @@ import std::io::path;
 import std::io;
 import std::os::process;
 
+const NEW_LINE = "\r\n";
 const CSI = "\x1B[";
 const SGR_RESET = CSI +++ "0m";
 const RED = "31m";
@@ -74,34 +75,44 @@ struct DiffState
     uint deletions;
 }
 
+fn String Repo.run_git(Repo *self, String[] command_line) {
+    char[1024] buf @noinit;
+
+    String[] final_command_line = array::tconcat((String[]){ "git", "-C", self.root.str_view() }, command_line);
+    String? result = process::execute_stdout_to_buffer(&buf, final_command_line);
+    if (try str = result) {
+        return str;
+    }
+
+    return "";
+}
+
 fn String Repo.branch_name(Repo *self)
 {
-    char[1024] buf @noinit;
-    String result = process::execute_stdout_to_buffer(&buf, {"git", "-C", self.root.str_view(), "rev-parse", "--abbrev-ref", "HEAD"})!!;
-    return result.trim();
+    return self.run_git({ "rev-parse", "--abbrev-ref", "HEAD" });
 }
 
 fn DiffState Repo.changes(Repo *self)
 {
-    char[1024] buf @noinit;
-    String output = process::execute_stdout_to_buffer(&buf, {"git", "-C", self.root.str_view(), "diff", "--shortstat", "HEAD"})!!;
-    String[] lines = output.tsplit("\n");
-    // io::printfn("git diff --shortstat HEAD output: %s", output);
-
     DiffState result = {};
+
+    String output = self.run_git({ "diff", "--shortstat", "HEAD" });
+    if (output.len == 0) {
+        return result;
+    }
+
+    String[] lines = output.tsplit("\n");
 
     for (usz i = 0; i < lines.len; i++)
     {
         if (try lines[i].index_of("file"))
         {
-            // io::printfn("parse line: %s", lines[i]);
             String[] tokens = lines[i].tsplit(" ");
             uint num = 0;
             
             for (usz j = 0; j < tokens.len; j++) 
             {
                 String token = tokens[j];
-                // io::printfn("parse token: %s", token);
                 if (try num_ = token.to_uint()) {
                     num = num_;
                     continue;
@@ -134,6 +145,7 @@ fn int main(int argc, char** argv)
 {
     Path cwd = path::cwd(allocator::mem)!!;
     String cwd_str = cwd.str_view().replace(allocator::mem, "\\", "/");
+    io::printf(NEW_LINE);
     io::printf(@color(BLUE, "%s"), short_view(cwd_str));
 
     if (try git_root = find_git_root(cwd, cwd_str))
@@ -149,9 +161,8 @@ fn int main(int argc, char** argv)
         }
     }
 
-    io::print("\n\r");
+    io::print(NEW_LINE);
     return 0;
 }
 
-// TODO 实现 git 调用实现
 // TODO 支持 BP_ENV_XXXX 环境变量展示
