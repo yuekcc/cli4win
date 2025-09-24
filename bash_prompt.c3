@@ -141,7 +141,22 @@ fn DiffState Repo.changes(Repo *self)
     return result;
 }
 
-fn int main(int argc, char** argv)
+fn void print_env_xxx(ZString* environ)
+{
+    for (usz i = 0; environ[i] != null; i++) {
+        String env = environ[i].str_view();
+        if (env.starts_with("BP_ENV_")) {
+            String[] xs = env.tsplit("=");
+            if (xs.len > 0)
+            {
+                io::printf(" (%s)", xs[1]);
+            }
+        }
+    }
+}
+
+fn void main() @export("_main") => unreachable();
+fn int _main(int argc, ZString* argv, ZString* environ) @export("main")
 {
     Path cwd = path::cwd(allocator::mem)!!;
     String cwd_str = cwd.str_view().replace(allocator::mem, "\\", "/");
@@ -161,8 +176,8 @@ fn int main(int argc, char** argv)
         }
     }
 
+    print_env_xxx(environ);
+
     io::print(NEW_LINE);
     return 0;
 }
-
-// TODO 支持 BP_ENV_XXXX 环境变量展示
