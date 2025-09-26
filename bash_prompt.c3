@@ -14,50 +14,29 @@ macro String @color(String $color, String $str)
     return CSI +++ $color +++ $str +++ SGR_RESET;
 }
 
-fn String short_view(String work_dir)
-{
-    String[] paths = work_dir.split(allocator::mem, "/");
-
-    DString buf = dstring::new(allocator::mem);
-    for (usz i = 0; i<paths.len; i++)
-    {
-        if (i == 0)
-        {
-            buf.append(paths[i]);
-            buf.append("/");
-        } 
-        else if (i == (paths.len - 1))
-        {
-            buf.append(paths[i]);
-        } 
-        else
-        {
-            WString name = paths[i].to_wstring(allocator::mem)!!;
-            buf.append(string::from_utf16(allocator::mem, name[:1])!!);
-            buf.append("/");
-        }
-    }
-
-    return buf.str_view();
-}
-
 faultdef
     GIT_ROOT_NOT_FOUND,
     PARSE_DIFF_STATE_FAILED;
 
-fn Path? find_git_root(Path cwd, String cwd_str)
+fn Path? find_git_root(Path cwd)
 {
-    String[] paths = cwd_str.tsplit("/");
-
     Path target = cwd;
-    for (usz i = 0; i < paths.len; i++)
+    for (;;)
     {
         Path git_dir = target.tappend(".git")!;
         if (path::exists(git_dir))
         {
             return target;
         }
-        target = target.parent()!;
+
+        if (try parent = target.parent())
+        {
+            target = parent;
+        }
+        else
+        {
+            break;
+        }
     }
 
     return GIT_ROOT_NOT_FOUND?;
@@ -155,15 +134,9 @@ fn void print_env_xxx(ZString* environ)
     }
 }
 
-fn void main() @export("_main") => unreachable();
-fn int _main(int argc, ZString* argv, ZString* environ) @export("main")
+fn void print_git(Path cwd)
 {
-    Path cwd = path::cwd(allocator::mem)!!;
-    String cwd_str = cwd.str_view().replace(allocator::mem, "\\", "/");
-    io::printf(NEW_LINE);
-    io::printf(@color(BLUE, "%s"), short_view(cwd_str));
-
-    if (try git_root = find_git_root(cwd, cwd_str))
+    if (try git_root = find_git_root(cwd))
     {
         Repo repo = {.root = git_root };
         io::printf(" @ " +++ @color(YELLOW, "%s"), repo.branch_name());
@@ -175,9 +148,53 @@ fn int _main(int argc, ZString* argv, ZString* environ) @export("main")
             io::printf(" +%d, -%d", diff_state.insertions, diff_state.deletions);
         }
     }
+}
 
-    print_env_xxx(environ);
 
-    io::print(NEW_LINE);
+fn String short_view(String work_dir)
+{
+    String[] paths = work_dir.split(tmem, "/");
+
+    DString buf = dstring::new(tmem);
+    for (usz i = 0; i<paths.len; i++)
+    {
+        if (i == 0)
+        {
+            buf.append(paths[i]);
+            buf.append("/");
+        } 
+        else if (i == (paths.len - 1))
+        {
+            buf.append(paths[i]);
+        } 
+        else
+        {
+            WString name = paths[i].to_wstring(tmem)!!;
+            buf.append(string::from_utf16(tmem, name[:1])!!);
+            buf.append("/");
+        }
+    }
+
+    return buf.str_view();
+}
+
+fn void print_cwd(Path cwd)
+{
+    String cwd_str = cwd.str_view().treplace("\\", "/");
+    io::printf(@color(BLUE, "%s"), short_view(cwd_str));
+}
+
+fn void main() @export("_main") => unreachable();
+fn int _main(int argc, ZString* argv, ZString* environ) @export("main")
+{
+    if (try cwd = path::tcwd())
+    {
+        io::printf(NEW_LINE);
+        print_cwd(cwd);
+        print_git(cwd);
+        print_env_xxx(environ);
+        io::print(NEW_LINE);
+    }
+
     return 0;
 }
