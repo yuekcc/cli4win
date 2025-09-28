@@ -122,9 +122,11 @@ fn DiffState Repo.changes(Repo *self)
 
 fn void print_env_xxx(ZString* environ)
 {
-    for (usz i = 0; environ[i] != null; i++) {
+    for (usz i = 0; environ[i] != null; i++)
+    {
         String env = environ[i].str_view();
-        if (env.starts_with("BP_ENV_")) {
+        if (env.starts_with("BP_ENV_"))
+        {
             String[] xs = env.tsplit("=");
             if (xs.len > 0)
             {
@@ -151,12 +153,12 @@ fn void print_git(Path cwd)
 }
 
 
-fn String short_view(String work_dir)
+fn String short_view(String work_dir, bool use_short_name)
 {
     String[] paths = work_dir.split(tmem, "/");
 
     DString buf = dstring::new(tmem);
-    for (usz i = 0; i<paths.len; i++)
+    for (usz i = 0; i < paths.len; i++)
     {
         if (i == 0)
         {
@@ -170,7 +172,15 @@ fn String short_view(String work_dir)
         else
         {
             WString name = paths[i].to_wstring(tmem)!!;
-            buf.append(string::from_utf16(tmem, name[:1])!!);
+            if (use_short_name)
+            {
+                buf.append(string::from_utf16(tmem, name[:1])!!);
+            }
+            else
+            {
+                buf.append(string::from_utf16(tmem, name[:name.len()])!!);
+            }
+
             buf.append("/");
         }
     }
@@ -178,21 +188,57 @@ fn String short_view(String work_dir)
     return buf.str_view();
 }
 
-fn void print_cwd(Path cwd)
+fn void print_cwd(Path cwd, bool use_short_name)
 {
     String cwd_str = cwd.str_view().treplace("\\", "/");
-    io::printf(@color(BLUE, "%s"), short_view(cwd_str));
+    io::printf(@color(BLUE, "%s"), short_view(cwd_str, use_short_name));
+}
+
+struct CommandLineFlag
+{
+    bool use_short_name;
+    bool show_env_xxx;
+}
+
+fn CommandLineFlag parse_argv(ZString* argv)
+{
+    CommandLineFlag cli = {};
+
+    for (usz i = 0; argv[i] != null; i++) {
+        String flag = argv[i].str_view();
+
+        if (flag == "--short")
+        {
+            cli.use_short_name = true;
+            continue;
+        }
+
+        if (flag == "--venv")
+        {
+            cli.show_env_xxx = true;
+            continue;
+        }
+    }
+
+    return cli;
 }
 
 fn void main() @export("_main") => unreachable();
 fn int _main(int argc, ZString* argv, ZString* environ) @export("main")
 {
+    CommandLineFlag flag = parse_argv(argv);
+
     if (try cwd = path::tcwd())
     {
         io::printf(NEW_LINE);
-        print_cwd(cwd);
+        print_cwd(cwd, flag.use_short_name);
         print_git(cwd);
-        print_env_xxx(environ);
+
+        if (flag.show_env_xxx)
+        {
+            print_env_xxx(environ);
+        }
+
         io::print(NEW_LINE);
     }
 
