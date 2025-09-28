@@ -3,27 +3,58 @@ import std::io::path;
 import win;
 import std::os::win32;
 
-fn int main(int argc, char** argv)
+fn int open_uri(String cwd, String uri)
 {
-    if (argc < 2)
+    return win::shell_exec(cwd, uri, "") ? 0 : 1;
+}
+
+fn int open_file(String cwd, String file_path, int argc, ZString* argv)
+{
+    Path? target = path::new(tmem, file_path);
+    if (catch reason = target)
     {
-        Path exe_name = path::new(allocator::mem, ZString.str_view((ZString)argv[0]))!!;
-        io::eprintfn("Usage: %s <FILE_PATH>", exe_name.basename());
+        io::eprintfn("Error, invalid path. Input = %s", file_path);
         return 1;
     }
 
-    String target_name = ZString.str_view((ZString)argv[1]);
-    target_name = path::normalize(target_name)!!;
-
-    Path cwd = path::cwd(allocator::mem)!!;
-
-    DString parameter = dstring::new(allocator::mem);
-    for (usz i = 2; i < argc; i++)
-    {
-        parameter.append(ZString.str_view((ZString)argv[i]));
-        parameter.append(" ");
+    if (!path::exists(target))
+    {        
+        io::eprintfn("Error, file not found. File path = %s", target);
+        return 1;
     }
 
-    return win::shell_exec(cwd.str_view(), target_name, parameter.str_view()) ? 0 : 1;
+    DString parameter = dstring::new(tmem);
+    if (argc > 2)
+    {
+        for (usz i = 2; argv[i] != null; i++)
+        {
+            parameter.append(argv[i].str_view());
+            parameter.append(" ");
+        }
+    }
+
+
+    return win::shell_exec(cwd, target.str_view(), parameter.str_view()) ? 0 : 1;
+}
+
+
+fn int main(int argc, ZString* argv)
+{
+    Path cwd = path::cwd(tmem)!!;
+
+    // 目标默认为当前目录
+    String target_file = ".";
+    if (argc > 1)
+    {
+        target_file = argv[1].str_view();
+    }
+
+    // 直接打开 URL
+    if (target_file.starts_with("http:") || target_file.starts_with("https:") || target_file.starts_with("mailto:"))
+    {
+        return open_uri(cwd.str_view(), target_file);
+    }
+
+    return open_file(cwd.str_view(), target_file, argc, argv);
 }
 
