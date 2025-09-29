@@ -210,6 +210,9 @@ struct CommandLineFlag
 {
     bool use_short_name;
     bool show_env_xxx;
+    bool show_init;
+    bool show_help;
+    String exe_name;
 }
 
 fn CommandLineFlag parse_argv(ZString* argv)
@@ -219,15 +222,30 @@ fn CommandLineFlag parse_argv(ZString* argv)
     for (usz i = 0; argv[i] != null; i++) {
         String flag = argv[i].str_view();
 
+        if (i == 0)
+        {
+            cli.exe_name = flag;
+            continue;
+        }
+
         if (flag == "--short")
         {
             cli.use_short_name = true;
             continue;
         }
-
-        if (flag == "--venv")
+        else if (flag == "--venv")
         {
             cli.show_env_xxx = true;
+            continue;
+        }
+        else if (flag == "--init")
+        {
+            cli.show_init = true;
+            continue;
+        }
+        else if (flag == "--help" || flag == "-h")
+        {
+            cli.show_help = true;
             continue;
         }
     }
@@ -239,6 +257,23 @@ fn void main() @export("_main") => unreachable();
 fn int _main(int argc, ZString* argv, ZString* environ) @export("main")
 {
     CommandLineFlag flag = parse_argv(argv);
+
+    if (flag.show_help)
+    {
+        io::printfn("bash_prompt, a PROMPT_COMMAND\nflags:");
+        io::printfn("\t--short: enable short dir name");
+        io::printfn("\t--venv: show BP_ENV_XXX for multi version programs");
+        io::printfn("\t--init: print init script, use for quick setup: bash_prompt init >> ~/.bashrc");
+        io::printfn("\t--help: print this message ");
+        return 0;
+    }
+
+    if (flag.show_init)
+    {
+        Path exe_name = path::new(allocator::mem, flag.exe_name)!!;
+        io::printf("\nPROMPT_COMMAND=\"%s\"; export PROMPT_COMMAND; PS1=\"\\$ \";", exe_name.basename());
+        return 0;
+    }
 
     if (try cwd = path::tcwd())
     {
