@@ -1,6 +1,7 @@
 import std::io::path;
 import std::io;
 import std::os::process;
+import std::os::env;
 
 const NEW_LINE = "\r\n";
 const CSI = "\x1B[";
@@ -155,6 +156,17 @@ fn void print_git(Path cwd)
 
 fn String short_view(String work_dir, bool use_short_name)
 {
+    String home = "";
+    if (try home_env = env::get_home_dir(tmem))
+    {
+        home = home_env.treplace("\\", "/");
+    }
+
+    if (home.len >0 && work_dir.starts_with(home))
+    {
+        work_dir = work_dir.treplace(home, "~");
+    }
+
     String[] paths = work_dir.split(tmem, "/");
 
     DString buf = dstring::new(tmem);
