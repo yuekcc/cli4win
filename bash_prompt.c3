@@ -61,7 +61,7 @@ fn String Repo.run_git(Repo *self, String[] command_line) {
     String[] final_command_line = array::tconcat((String[]){ "git", "-C", self.root.str_view() }, command_line);
     String? result = process::execute_stdout_to_buffer(&buf, final_command_line);
     if (try str = result) {
-        return str;
+        return str.copy(tmem);
     }
 
     return "";
@@ -141,7 +141,7 @@ fn void print_git(Path cwd)
 {
     if (try git_root = find_git_root(cwd))
     {
-        Repo repo = {.root = git_root };
+        Repo repo = { .root = git_root };
         io::printf(" @ " +++ @color(YELLOW, "%s"), repo.branch_name());
 
         DiffState diff_state = repo.changes();
