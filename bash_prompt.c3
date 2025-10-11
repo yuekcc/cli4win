@@ -263,7 +263,7 @@ fn int _main(int argc, ZString* argv, ZString* environ) @export("main")
         io::printfn("bash_prompt, a PROMPT_COMMAND\nflags:");
         io::printfn("\t--short: enable short dir name");
         io::printfn("\t--venv: show BP_ENV_XXX for multi version programs");
-        io::printfn("\t--init: print init script, use for quick setup: bash_prompt init >> ~/.bashrc");
+        io::printfn("\t--init: print init script, use for quick setup: bash_prompt --init >> ~/.bashrc");
         io::printfn("\t--help: print this message ");
         return 0;
     }
