@@ -59,7 +59,16 @@ fn String Repo.run_git(Repo *self, String[] command_line) {
     char[1024] buf @noinit;
 
     String[] final_command_line = array::tconcat((String[]){ "git", "-C", self.root.str_view() }, command_line);
-    String? result = process::execute_stdout_to_buffer(&buf, final_command_line);
+    String? result = process::execute_stdout_to_buffer(
+        &buf, 
+        final_command_line, 
+        {
+            .combined_stdout_stderr = true,
+            .inherit_environment = true,
+            .search_user_path = true,
+            .no_window = true,
+        }
+    );
     if (try str = result) {
         return str.copy(tmem);
     }
