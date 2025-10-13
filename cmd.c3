@@ -1,5 +1,6 @@
 module cmd;
 import std::os::process;
+import std::io;
 
 fn String? execute_to_string(String[] command_line)
 {
@@ -30,4 +31,18 @@ fn String? execute_to_string(String[] command_line)
     }
 
     return result.str_view().copy(tmem);
+}
+
+fn void test_execute_to_string() @test
+{
+    String[] final_command_line = {"curl", "-k", "https://www.baidu.com"};
+    String? result = cmd::execute_to_string(final_command_line);
+
+    if (catch err = result)
+    {
+        io::printfn("Error, %s", err);
+        return;
+    }
+
+    io::printfn("%s", result);
 }
