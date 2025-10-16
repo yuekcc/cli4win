@@ -14,7 +14,11 @@ fn String? execute_to_string(String[] command_line)
         }
     )!;
 
-    process.join()!;
+    isz return_code = process.join()!;
+    if (return_code != 0)
+    {
+        return "";
+    }
 
     DString result = dstring::new(tmem);
     usz count = 0;

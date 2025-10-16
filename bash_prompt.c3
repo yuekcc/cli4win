@@ -69,7 +69,8 @@ fn String Repo.run_git(Repo *self, String[] command_line) {
 
 fn String Repo.branch_name(Repo *self)
 {
-    return self.run_git({ "rev-parse", "--abbrev-ref", "HEAD" });
+    String name = self.run_git({ "rev-parse", "--abbrev-ref", "HEAD" });
+    return name.len == 0 ? "HEAD" : name;
 }
 
 fn DiffState Repo.changes(Repo *self)
