@@ -85,7 +85,7 @@ fn DiffState Repo.changes(Repo *self)
         {
             String[] tokens = lines[i].tsplit(" ");
             uint num = 0;
-            
+
             for (usz j = 0; j < tokens.len; j++) 
             {
                 String token = tokens[j];
@@ -99,12 +99,12 @@ fn DiffState Repo.changes(Repo *self)
                     result.files_changed = num;
                     continue;
                 }
-                else if (try token.index_of("insertions"))
+                else if (try token.index_of("insertion"))
                 {
                     result.insertions = num;
                     continue;
                 }
-                else if (try token.index_of("deletions"))
+                else if (try token.index_of("deletion"))
                 {
                     result.deletions = num;
                     continue;
