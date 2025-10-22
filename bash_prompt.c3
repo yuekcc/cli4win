@@ -122,7 +122,7 @@ fn DiffState Repo.changes(Repo *self)
     return result;
 }
 
-fn void print_env_xxx(ZString* environ)
+fn void print_env_xxx(DString* out, ZString* environ)
 {
     for (usz i = 0; environ[i] != null; i++)
     {
@@ -132,28 +132,27 @@ fn void print_env_xxx(ZString* environ)
             String[] xs = env.tsplit("=");
             if (xs.len > 0)
             {
-                io::printf(" (%s)", xs[1]);
+                out.appendf(" (%s)", xs[1]);
             }
         }
     }
 }
 
-fn void print_git(Path cwd)
+fn void print_git(DString* out, Path cwd)
 {
     if (try git_root = find_git_root(cwd))
     {
         Repo repo = { .root = git_root };
-        io::printf(" @ " +++ @color(YELLOW, "%s"), repo.branch_name());
+        out.appendf(" @ " +++ @color(YELLOW, "%s"), repo.branch_name());
 
         DiffState diff_state = repo.changes();
         if (diff_state.files_changed > 0)
         {
-            io::printf(@color(RED, "*"));
-            io::printf(" +%d, -%d", diff_state.insertions, diff_state.deletions);
+            out.append(@color(RED, "*"));
+            out.appendf(" +%d, -%d", diff_state.insertions, diff_state.deletions);
         }
     }
 }
-
 
 fn String short_view(String work_dir, bool use_short_name)
 {
@@ -201,10 +200,10 @@ fn String short_view(String work_dir, bool use_short_name)
     return buf.str_view();
 }
 
-fn void print_cwd(Path cwd, bool use_short_name)
+fn void print_cwd(DString* out, Path cwd, bool use_short_name)
 {
     String cwd_str = cwd.str_view().treplace("\\", "/");
-    io::printf(@color(BLUE, "%s"), short_view(cwd_str, use_short_name));
+    out.appendf(@color(BLUE, "%s"), short_view(cwd_str, use_short_name));
 }
 
 struct CommandLineFlag
@@ -257,38 +256,44 @@ fn CommandLineFlag parse_argv(ZString* argv)
 fn void main() @export("_main") => unreachable();
 fn int _main(int argc, ZString* argv, ZString* environ) @export("main")
 {
-    CommandLineFlag flag = parse_argv(argv);
-
-    if (flag.show_help)
+    @pool()
     {
-        io::printfn("bash_prompt, a PROMPT_COMMAND\nflags:");
-        io::printfn("\t--short: enable short dir name");
-        io::printfn("\t--venv: show BP_ENV_XXX for multi version programs");
-        io::printfn("\t--init: print init script, use for quick setup: bash_prompt --init >> ~/.bashrc");
-        io::printfn("\t--help: print this message ");
-        return 0;
-    }
+        CommandLineFlag flag = parse_argv(argv);
 
-    if (flag.show_init)
-    {
-        Path exe_name = path::new(allocator::mem, flag.exe_name)!!;
-        io::printf("\nPROMPT_COMMAND=\"%s\"; export PROMPT_COMMAND; PS1=\"\\$ \";", exe_name.basename());
-        return 0;
-    }
-
-    if (try cwd = path::tcwd())
-    {
-        io::printf(NEW_LINE);
-        print_cwd(cwd, flag.use_short_name);
-        print_git(cwd);
-
-        if (flag.show_env_xxx)
+        if (flag.show_help)
         {
-            print_env_xxx(environ);
+            io::printn("bash_prompt, a PROMPT_COMMAND\nflags:\n"
+                +++ "\t--short: enable short dir name\n"
+                +++ "\t--venv: show BP_ENV_XXX for multi version programs\n"
+                +++ "\t--init: print init script, use for quick setup: bash_prompt --init >> ~/.bashrc\n"
+                +++ "\t--help: print this message");
+            return 0;
         }
 
-        io::print(NEW_LINE);
-    }
+        if (flag.show_init)
+        {
+            Path exe_name = path::new(allocator::mem, flag.exe_name)!!;
+            io::printf("\nPROMPT_COMMAND=\"%s\"; export PROMPT_COMMAND; PS1=\"\\$ \";", exe_name.basename());
+            return 0;
+        }
 
-    return 0;
+        if (try cwd = path::tcwd())
+        {
+            DString buf = dstring::new(tmem);
+            buf.append(NEW_LINE);
+
+            print_cwd(&buf, cwd, flag.use_short_name);
+            print_git(&buf, cwd);
+
+            if (flag.show_env_xxx)
+            {
+                print_env_xxx(&buf, environ);
+            }
+
+            buf.append(NEW_LINE);
+            io::print(buf.str_view());
+        }
+
+        return 0;
+    };
 }
