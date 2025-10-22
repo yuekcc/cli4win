@@ -5,15 +5,10 @@ import std::os::env;
 import cmd;
 
 const NEW_LINE = "\r\n";
-const CSI = "\x1B[";
-const SGR_RESET = CSI +++ "0m";
-const RED = "31m";
-const YELLOW = "33m";
-const BLUE = "34m";
 
-macro String @color(String $color, String $str)
+macro String @style(String $style, String $str)
 {
-    return CSI +++ $color +++ $str +++ SGR_RESET;
+    return $style +++ $str +++ Ansi.RESET;
 }
 
 faultdef
@@ -132,7 +127,7 @@ fn void print_env_xxx(DString* out, ZString* environ)
             String[] xs = env.tsplit("=");
             if (xs.len > 0)
             {
-                out.appendf(" (%s)", xs[1]);
+                out.appendf(@style(Ansi.ITALIC, " (%s)"), xs[1]);
             }
         }
     }
@@ -143,12 +138,12 @@ fn void print_git(DString* out, Path cwd)
     if (try git_root = find_git_root(cwd))
     {
         Repo repo = { .root = git_root };
-        out.appendf(" @ " +++ @color(YELLOW, "%s"), repo.branch_name());
+        out.appendf(" @ " +++ @style(Ansi.YELLOW, "%s"), repo.branch_name());
 
         DiffState diff_state = repo.changes();
         if (diff_state.files_changed > 0)
         {
-            out.append(@color(RED, "*"));
+            out.append(@style(Ansi.RED, "*"));
             out.appendf(" +%d, -%d", diff_state.insertions, diff_state.deletions);
         }
     }
@@ -162,7 +157,7 @@ fn String short_view(String work_dir, bool use_short_name)
         home = home_env.treplace("\\", "/");
     }
 
-    if (home.len >0 && work_dir.starts_with(home))
+    if (home.len > 0 && work_dir.starts_with(home))
     {
         work_dir = work_dir.treplace(home, "~");
     }
@@ -203,7 +198,7 @@ fn String short_view(String work_dir, bool use_short_name)
 fn void print_cwd(DString* out, Path cwd, bool use_short_name)
 {
     String cwd_str = cwd.str_view().treplace("\\", "/");
-    out.appendf(@color(BLUE, "%s"), short_view(cwd_str, use_short_name));
+    out.appendf(@style(Ansi.BLUE +++ Ansi.BOLD, "%s"), short_view(cwd_str, use_short_name));
 }
 
 struct CommandLineFlag
@@ -265,14 +260,14 @@ fn int _main(int argc, ZString* argv, ZString* environ) @export("main")
             io::printn("bash_prompt, a PROMPT_COMMAND\nflags:\n"
                 +++ "\t--short: enable short dir name\n"
                 +++ "\t--venv: show BP_ENV_XXX for multi version programs\n"
-                +++ "\t--init: print init script, use for quick setup: bash_prompt --init >> ~/.bashrc\n"
+                +++ "\t--init: print init script. To quick setup, run: bash_prompt --init >> ~/.bashrc\n"
                 +++ "\t--help: print this message");
             return 0;
         }
 
         if (flag.show_init)
         {
-            Path exe_name = path::new(allocator::mem, flag.exe_name)!!;
+            Path exe_name = path::new(tmem, flag.exe_name)!!;
             io::printf("\nPROMPT_COMMAND=\"%s\"; export PROMPT_COMMAND; PS1=\"\\$ \";", exe_name.basename());
             return 0;
         }
