@@ -51,9 +51,9 @@ struct DiffState
     uint deletions;
 }
 
-fn String Repo.run_git(Repo *self, String[] command_line) {
-    String[] final_command_line = array::tconcat((String[]){ "git", "-C", self.root.str_view() }, command_line);
-    String? result = cmd::execute_to_string(final_command_line);
+fn String Repo.run_git(Repo *self, Allocator allocator, String[] command_line) {
+    String[] final_command_line = array::concat(allocator, (String[]){ "git", "-C", self.root.str_view() }, command_line);
+    String? result = cmd::execute_to_string(allocator, final_command_line);
     if (try result)
     {
         return result;
@@ -62,28 +62,28 @@ fn String Repo.run_git(Repo *self, String[] command_line) {
     return "";
 }
 
-fn String Repo.branch_name(Repo *self)
+fn String Repo.branch_name(Repo *self, Allocator allocator) => @pool()
 {
-    String name = self.run_git({ "rev-parse", "--abbrev-ref", "HEAD" });
-    return name.len == 0 ? "HEAD" : name;
+    String name = self.run_git(tmem, { "rev-parse", "--abbrev-ref", "HEAD" });
+    return name.len == 0 ? "HEAD".copy(allocator) : name.copy(allocator);
 }
 
-fn DiffState Repo.changes(Repo *self)
+fn DiffState* Repo.changes(Repo *self, Allocator allocator) => @pool()
 {
-    DiffState result = {};
+    DiffState* result = allocator::new(allocator, DiffState);
 
-    String output = self.run_git({ "diff", "--shortstat", "HEAD" });
+    String output = self.run_git(tmem, { "diff", "--shortstat", "HEAD" });
     if (output.len == 0) {
         return result;
     }
 
-    String[] lines = output.tsplit("\n");
+    String[] lines = output.split(tmem, "\n");
 
     for (usz i = 0; i < lines.len; i++)
     {
         if (try lines[i].index_of("file"))
         {
-            String[] tokens = lines[i].tsplit(" ");
+            String[] tokens = lines[i].split(tmem, " ");
             uint num = 0;
 
             for (usz j = 0; j < tokens.len; j++) 
@@ -94,17 +94,17 @@ fn DiffState Repo.changes(Repo *self)
                     continue;
                 }
 
-                if (try token.index_of("file"))
+                if (token.starts_with("file"))
                 {
                     result.files_changed = num;
                     continue;
                 }
-                else if (try token.index_of("insertion"))
+                else if (token.starts_with("insertion"))
                 {
                     result.insertions = num;
                     continue;
                 }
-                else if (try token.index_of("deletion"))
+                else if (token.starts_with("deletion"))
                 {
                     result.deletions = num;
                     continue;
@@ -117,14 +117,14 @@ fn DiffState Repo.changes(Repo *self)
     return result;
 }
 
-fn void print_env_xxx(DString* out, ZString* environ)
+fn void print_env_xxx(DString* out, ZString* environ) => @pool()
 {
     for (usz i = 0; environ[i] != null; i++)
     {
         String env = environ[i].str_view();
         if (env.starts_with("BP_ENV_"))
         {
-            String[] xs = env.tsplit("=");
+            String[] xs = env.split(tmem, "=");
             if (xs.len > 0)
             {
                 out.appendf(@style(Ansi.ITALIC, " (%s)"), xs[1]);
@@ -137,29 +137,32 @@ fn void print_git(DString* out, Path cwd)
 {
     if (try git_root = find_git_root(cwd))
     {
-        Repo repo = { .root = git_root };
-        out.appendf(" @ " +++ @style(Ansi.YELLOW, "%s"), repo.branch_name());
-
-        DiffState diff_state = repo.changes();
-        if (diff_state.files_changed > 0)
+        @pool()
         {
-            out.append(@style(Ansi.RED, "*"));
-            out.appendf(" +%d, -%d", diff_state.insertions, diff_state.deletions);
-        }
+            Repo repo = { .root = git_root };
+            out.appendf(" @ " +++ @style(Ansi.YELLOW, "%s"), repo.branch_name(tmem));
+
+            DiffState* diff_state = repo.changes(tmem);
+            if (diff_state.files_changed > 0)
+            {
+                out.append(@style(Ansi.RED, "*"));
+                out.appendf(" +%d, -%d", diff_state.insertions, diff_state.deletions);
+            }
+        };
     }
 }
 
-fn String short_view(String work_dir, bool use_short_name)
+fn String short_view(Allocator allocator, String work_dir, bool use_short_name) => @pool()
 {
     String home = "";
     if (try home_env = env::get_home_dir(tmem))
     {
-        home = home_env.treplace("\\", "/");
+        home = home_env.replace(tmem, "\\", "/");
     }
 
     if (home.len > 0 && work_dir.starts_with(home))
     {
-        work_dir = work_dir.treplace(home, "~");
+        work_dir = work_dir.replace(tmem, home, "~");
     }
 
     String[] paths = work_dir.split(tmem, "/");
@@ -192,13 +195,13 @@ fn String short_view(String work_dir, bool use_short_name)
         }
     }
 
-    return buf.str_view();
+    return buf.str_view().copy(allocator);
 }
 
-fn void print_cwd(DString* out, Path cwd, bool use_short_name)
+fn void print_cwd(DString* out, Path cwd, bool use_short_name) => @pool()
 {
-    String cwd_str = cwd.str_view().treplace("\\", "/");
-    out.appendf(@style(Ansi.BLUE +++ Ansi.BOLD, "%s"), short_view(cwd_str, use_short_name));
+    String cwd_str = cwd.str_view().replace(tmem, "\\", "/");
+    out.appendf(@style(Ansi.BLUE +++ Ansi.BOLD, "%s"), short_view(tmem, cwd_str, use_short_name));
 }
 
 struct CommandLineFlag
@@ -210,16 +213,16 @@ struct CommandLineFlag
     String exe_name;
 }
 
-fn CommandLineFlag parse_argv(ZString* argv)
+fn CommandLineFlag* parse_argv(Allocator allocator, ZString* argv)
 {
-    CommandLineFlag cli = {};
+    CommandLineFlag* cli = allocator::new(allocator, CommandLineFlag);
 
     for (usz i = 0; argv[i] != null; i++) {
         String flag = argv[i].str_view();
 
         if (i == 0)
         {
-            cli.exe_name = flag;
+            cli.exe_name = flag.copy(allocator);
             continue;
         }
 
@@ -253,7 +256,7 @@ fn int _main(int argc, ZString* argv, ZString* environ) @export("main")
 {
     @pool()
     {
-        CommandLineFlag flag = parse_argv(argv);
+        CommandLineFlag* flag = parse_argv(tmem, argv);
 
         if (flag.show_help)
         {
@@ -272,7 +275,7 @@ fn int _main(int argc, ZString* argv, ZString* environ) @export("main")
             return 0;
         }
 
-        if (try cwd = path::tcwd())
+        if (try cwd = path::cwd(tmem))
         {
             DString buf = dstring::new(tmem);
             buf.append(NEW_LINE);

@@ -2,7 +2,7 @@ module cmd;
 import std::os::process;
 import std::io;
 
-fn String? execute_to_string(String[] command_line)
+fn String? execute_to_string(Allocator allocator, String[] command_line)
 {
     process::SubProcess process = process::create(
         command_line, 
@@ -34,13 +34,13 @@ fn String? execute_to_string(String[] command_line)
         result.append((String)buf[:len-1]);
     }
 
-    return result.str_view().copy(tmem);
+    return result.str_view().copy(allocator);
 }
 
 fn void test_execute_to_string() @test
 {
     String[] final_command_line = {"curl", "-k", "https://www.baidu.com"};
-    String? result = cmd::execute_to_string(final_command_line);
+    String? result = cmd::execute_to_string(tmem, final_command_line);
 
     if (catch err = result)
     {
