@@ -53,10 +53,10 @@ struct DiffState
 
 fn String Repo.run_git(Repo *self, Allocator allocator, String[] command_line) {
     String[] final_command_line = array::concat(tmem, (String[]){ "git", "-C", self.root.str_view() }, command_line);
-    String? result = cmd::execute_to_string(tmem, final_command_line);
+    String? result = cmd::execute_to_string(allocator, final_command_line);
     if (try result)
     {
-        return result.copy(allocator);
+        return result;
     }
 
     return "";
@@ -164,7 +164,7 @@ fn String short_view(Allocator allocator, String work_dir, bool use_short_name)
 
     String[] paths = work_dir.split(tmem, "/");
 
-    DString buf = dstring::new(tmem);
+    DString buf = dstring::new(allocator);
     for (usz i = 0; i < paths.len; i++)
     {
         if (i == 0)
@@ -192,7 +192,7 @@ fn String short_view(Allocator allocator, String work_dir, bool use_short_name)
         }
     }
 
-    return buf.str_view().copy(allocator);
+    return buf.str_view();
 }
 
 fn void print_cwd(DString* out, Path cwd, bool use_short_name)
