@@ -20,7 +20,7 @@ fn String? execute_to_string(Allocator allocator, String[] command_line)
         return "";
     }
 
-    DString result = dstring::new(tmem);
+    DString result = dstring::new(allocator);
     usz count = 0;
     while(true)
     {
@@ -34,7 +34,7 @@ fn String? execute_to_string(Allocator allocator, String[] command_line)
         result.append((String)buf[:len-1]);
     }
 
-    return result.str_view().copy(allocator);
+    return result.str_view();
 }
 
 fn void test_execute_to_string() @test

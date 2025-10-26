@@ -15,7 +15,7 @@ faultdef
     GIT_ROOT_NOT_FOUND,
     PARSE_DIFF_STATE_FAILED;
 
-fn Path*? find_git_root(Allocator allocator, Path cwd)
+fn Path? find_git_root(Path cwd)
 {
     Path target = cwd;
     for (;;)
@@ -23,7 +23,7 @@ fn Path*? find_git_root(Allocator allocator, Path cwd)
         Path git_dir = target.append(tmem, ".git")!;
         if (path::exists(git_dir))
         {
-            return allocator::clone(allocator, target);
+            return git_dir.parent();
         }
 
         if (try parent = target.parent())
@@ -52,25 +52,25 @@ struct DiffState
 }
 
 fn String Repo.run_git(Repo *self, Allocator allocator, String[] command_line) {
-    String[] final_command_line = array::concat(allocator, (String[]){ "git", "-C", self.root.str_view() }, command_line);
-    String? result = cmd::execute_to_string(allocator, final_command_line);
+    String[] final_command_line = array::concat(tmem, (String[]){ "git", "-C", self.root.str_view() }, command_line);
+    String? result = cmd::execute_to_string(tmem, final_command_line);
     if (try result)
     {
-        return result;
+        return result.copy(allocator);
     }
 
     return "";
 }
 
-fn String Repo.branch_name(Repo *self, Allocator allocator)
+fn String Repo.branch_name(Repo *self)
 {
     String name = self.run_git(tmem, { "rev-parse", "--abbrev-ref", "HEAD" });
-    return name.len == 0 ? "HEAD".copy(allocator) : name.copy(allocator);
+    return name.len == 0 ? "HEAD" : name;
 }
 
-fn DiffState* Repo.changes(Repo *self, Allocator allocator)
+fn DiffState Repo.changes(Repo *self)
 {
-    DiffState* result = allocator::new(allocator, DiffState);
+    DiffState result = {};
 
     String output = self.run_git(tmem, { "diff", "--shortstat", "HEAD" });
     if (output.len == 0) {
@@ -135,12 +135,12 @@ fn void print_env_xxx(DString* out, ZString* environ)
 
 fn void print_git(DString* out, Path cwd)
 {
-    if (try git_root = find_git_root(tmem, cwd))
+    if (try git_root = find_git_root(cwd))
     {
-        Repo repo = { .root = *git_root,  };
-        out.appendf(" @ " +++ @style(Ansi.YELLOW, "%s"), repo.branch_name(tmem));
+        Repo repo = { .root = git_root };
+        out.appendf(" @ " +++ @style(Ansi.YELLOW, "%s"), repo.branch_name());
 
-        DiffState* diff_state = repo.changes(tmem);
+        DiffState diff_state = repo.changes();
         if (diff_state.files_changed > 0)
         {
             out.append(@style(Ansi.RED, "*"));
@@ -210,16 +210,16 @@ struct CommandLineFlag
     String exe_name;
 }
 
-fn CommandLineFlag* parse_argv(Allocator allocator, ZString* argv)
+fn CommandLineFlag parse_argv(ZString* argv)
 {
-    CommandLineFlag* cli = allocator::new(allocator, CommandLineFlag);
+    CommandLineFlag cli = {}; 
 
     for (usz i = 0; argv[i] != null; i++) {
         String flag = argv[i].str_view();
 
         if (i == 0)
         {
-            cli.exe_name = flag.copy(allocator);
+            cli.exe_name = flag;
             continue;
         }
 
@@ -253,7 +253,7 @@ fn int _main(int argc, ZString* argv, ZString* environ) @export("main")
 {
     @pool()
     {
-        CommandLineFlag* flag = parse_argv(tmem, argv);
+        CommandLineFlag flag = parse_argv(argv);
 
         if (flag.show_help)
         {
