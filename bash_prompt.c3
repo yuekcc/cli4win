@@ -15,15 +15,15 @@ faultdef
     GIT_ROOT_NOT_FOUND,
     PARSE_DIFF_STATE_FAILED;
 
-fn Path? find_git_root(Path cwd)
+fn Path*? find_git_root(Allocator allocator, Path cwd)
 {
     Path target = cwd;
     for (;;)
     {
-        Path git_dir = target.tappend(".git")!;
+        Path git_dir = target.append(tmem, ".git")!;
         if (path::exists(git_dir))
         {
-            return target;
+            return allocator::clone(allocator, target);
         }
 
         if (try parent = target.parent())
@@ -62,13 +62,13 @@ fn String Repo.run_git(Repo *self, Allocator allocator, String[] command_line) {
     return "";
 }
 
-fn String Repo.branch_name(Repo *self, Allocator allocator) => @pool()
+fn String Repo.branch_name(Repo *self, Allocator allocator)
 {
     String name = self.run_git(tmem, { "rev-parse", "--abbrev-ref", "HEAD" });
     return name.len == 0 ? "HEAD".copy(allocator) : name.copy(allocator);
 }
 
-fn DiffState* Repo.changes(Repo *self, Allocator allocator) => @pool()
+fn DiffState* Repo.changes(Repo *self, Allocator allocator)
 {
     DiffState* result = allocator::new(allocator, DiffState);
 
@@ -117,7 +117,7 @@ fn DiffState* Repo.changes(Repo *self, Allocator allocator) => @pool()
     return result;
 }
 
-fn void print_env_xxx(DString* out, ZString* environ) => @pool()
+fn void print_env_xxx(DString* out, ZString* environ)
 {
     for (usz i = 0; environ[i] != null; i++)
     {
@@ -135,24 +135,21 @@ fn void print_env_xxx(DString* out, ZString* environ) => @pool()
 
 fn void print_git(DString* out, Path cwd)
 {
-    if (try git_root = find_git_root(cwd))
+    if (try git_root = find_git_root(tmem, cwd))
     {
-        @pool()
-        {
-            Repo repo = { .root = git_root };
-            out.appendf(" @ " +++ @style(Ansi.YELLOW, "%s"), repo.branch_name(tmem));
+        Repo repo = { .root = *git_root,  };
+        out.appendf(" @ " +++ @style(Ansi.YELLOW, "%s"), repo.branch_name(tmem));
 
-            DiffState* diff_state = repo.changes(tmem);
-            if (diff_state.files_changed > 0)
-            {
-                out.append(@style(Ansi.RED, "*"));
-                out.appendf(" +%d, -%d", diff_state.insertions, diff_state.deletions);
-            }
-        };
+        DiffState* diff_state = repo.changes(tmem);
+        if (diff_state.files_changed > 0)
+        {
+            out.append(@style(Ansi.RED, "*"));
+            out.appendf(" +%d, -%d", diff_state.insertions, diff_state.deletions);
+        }
     }
 }
 
-fn String short_view(Allocator allocator, String work_dir, bool use_short_name) => @pool()
+fn String short_view(Allocator allocator, String work_dir, bool use_short_name)
 {
     String home = "";
     if (try home_env = env::get_home_dir(tmem))
@@ -198,7 +195,7 @@ fn String short_view(Allocator allocator, String work_dir, bool use_short_name) 
     return buf.str_view().copy(allocator);
 }
 
-fn void print_cwd(DString* out, Path cwd, bool use_short_name) => @pool()
+fn void print_cwd(DString* out, Path cwd, bool use_short_name)
 {
     String cwd_str = cwd.str_view().replace(tmem, "\\", "/");
     out.appendf(@style(Ansi.BLUE +++ Ansi.BOLD, "%s"), short_view(tmem, cwd_str, use_short_name));
