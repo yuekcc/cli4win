@@ -164,7 +164,7 @@ fn String short_view(Allocator allocator, String work_dir, bool use_short_name)
 
     String[] paths = work_dir.split(tmem, "/");
 
-    DString buf = dstring::new(allocator);
+    DString buf = dstring::new(tmem);
     for (usz i = 0; i < paths.len; i++)
     {
         if (i == 0)
@@ -191,8 +191,13 @@ fn String short_view(Allocator allocator, String work_dir, bool use_short_name)
             buf.append("/");
         }
     }
+    
+    if (allocator == tmem)
+    {
+        return buf.str_view();
+    }
 
-    return buf.str_view();
+    return buf.copy_str(allocator);
 }
 
 fn void print_cwd(DString* out, Path cwd, bool use_short_name)
@@ -251,44 +256,41 @@ fn CommandLineFlag parse_argv(ZString* argv)
 fn void main() @export("_main") => unreachable();
 fn int _main(int argc, ZString* argv, ZString* environ) @export("main")
 {
-    @pool()
+    CommandLineFlag flag = parse_argv(argv);
+
+    if (flag.show_help)
     {
-        CommandLineFlag flag = parse_argv(argv);
-
-        if (flag.show_help)
-        {
-            io::printn("bash_prompt, a PROMPT_COMMAND\nflags:\n"
-                +++ "\t--short: enable short dir name\n"
-                +++ "\t--venv: show BP_ENV_XXX for multi version programs\n"
-                +++ "\t--init: print init script. To quick setup, run: bash_prompt --init >> ~/.bashrc\n"
-                +++ "\t--help: print this message");
-            return 0;
-        }
-
-        if (flag.show_init)
-        {
-            Path exe_name = path::new(tmem, flag.exe_name)!!;
-            io::printf("\nPROMPT_COMMAND=\"%s\"; export PROMPT_COMMAND; PS1=\"\\$ \";", exe_name.basename());
-            return 0;
-        }
-
-        if (try cwd = path::cwd(tmem))
-        {
-            DString buf = dstring::new(tmem);
-            buf.append(NEW_LINE);
-
-            print_cwd(&buf, cwd, flag.use_short_name);
-            print_git(&buf, cwd);
-
-            if (flag.show_env_xxx)
-            {
-                print_env_xxx(&buf, environ);
-            }
-
-            buf.append(NEW_LINE);
-            io::print(buf.str_view());
-        }
-
+        io::printn("bash_prompt, a PROMPT_COMMAND\nflags:\n"
+            +++ "\t--short: enable short dir name\n"
+            +++ "\t--venv: show BP_ENV_XXX for multi version programs\n"
+            +++ "\t--init: print init script. To quick setup, run: bash_prompt --init >> ~/.bashrc\n"
+            +++ "\t--help: print this message");
         return 0;
-    };
+    }
+
+    if (flag.show_init)
+    {
+        Path exe_name = path::new(mem, flag.exe_name)!!;
+        io::printf("\nPROMPT_COMMAND=\"%s\"; export PROMPT_COMMAND; PS1=\"\\$ \";", exe_name.basename());
+        return 0;
+    }
+
+    if (try cwd = path::cwd(mem))
+    {
+        DString buf = dstring::new(mem);
+        buf.append(NEW_LINE);
+
+        print_cwd(&buf, cwd, flag.use_short_name);
+        print_git(&buf, cwd);
+
+        if (flag.show_env_xxx)
+        {
+            print_env_xxx(&buf, environ);
+        }
+
+        buf.append(NEW_LINE);
+        io::print(buf.str_view());
+    }
+
+    return 0;
 }

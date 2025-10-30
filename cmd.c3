@@ -20,21 +20,29 @@ fn String? execute_to_string(Allocator allocator, String[] command_line)
         return "";
     }
 
-    DString result = dstring::new(allocator);
-    usz count = 0;
-    while(true)
+    @pool()
     {
-        char[512] buf @noinit;
-        usz len = process.read_stdout(&buf, buf.len)!;
-        if (len == 0)
+        DString result = dstring::new(tmem);
+        usz count = 0;
+        while(true)
         {
-            break;
+            char[512] buf @noinit;
+            usz len = process.read_stdout(&buf, buf.len)!;
+            if (len == 0)
+            {
+                break;
+            }
+
+            result.append((String)buf[:len-1]);
         }
 
-        result.append((String)buf[:len-1]);
-    }
+        if (allocator == tmem)
+        {
+            return result.str_view();
+        }
 
-    return result.str_view();
+        return result.copy_str(allocator);
+    };
 }
 
 fn void test_execute_to_string() @test
