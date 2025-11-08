@@ -14,11 +14,7 @@ fn String? execute_to_string(Allocator allocator, String[] command_line)
         }
     )!;
 
-    isz return_code = process.join()!;
-    if (return_code != 0)
-    {
-        return "";
-    }
+    process.join()!;
 
     @pool()
     {
