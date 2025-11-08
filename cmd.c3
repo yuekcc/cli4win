@@ -35,7 +35,7 @@ fn String? execute_to_string(Allocator allocator, String[] command_line)
                 break;
             }
 
-            result.append((String)buf[:len-1]);
+            result.append((String)buf[:len]);
         }
 
         if (allocator == tmem)
