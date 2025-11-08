@@ -13,8 +13,14 @@ fn String? execute_to_string(Allocator allocator, String[] command_line)
             .no_window = true,
         }
     )!;
-
-    process.join()!;
+    
+    isz return_code = process.join()!;
+    $if env::DEBUG_SYMBOLS:
+    if (return_code != 0)
+    {
+        io::printfn("return code = %d", return_code);
+    }
+    $endif
 
     @pool()
     {
@@ -44,13 +50,18 @@ fn String? execute_to_string(Allocator allocator, String[] command_line)
 fn void test_execute_to_string() @test
 {
     String[] final_command_line = {"curl", "-k", "https://www.baidu.com"};
-    String? result = cmd::execute_to_string(tmem, final_command_line);
+    String result = cmd::execute_to_string(tmem, final_command_line)!!;
 
-    if (catch err = result)
-    {
-        io::printfn("Error, %s", err);
-        return;
-    }
+    // io::printfn("%s", result);
+    assert(result.contains("<html>") && result.contains("</html>"));
+}
+
+
+fn void test_non_zero_return_code() @test
+{
+    String[] final_command_line = {"curl", "-k"};
+    String result = cmd::execute_to_string(tmem, final_command_line)!!;
 
     io::printfn("%s", result);
+    assert(result.contains("no URL specified"));
 }
