@@ -6,6 +6,7 @@ sources=(
     "open.c3"
     "launch.c3"
     "bash_prompt.c3"
+    "agent.c3"
 )
 
 for src_file in ${sources[@]};

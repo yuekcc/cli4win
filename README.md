@@ -5,6 +5,7 @@
 | open        | 调用 ShellExecuteW 打开文件或执行命令。类似双击打开文件、start 命令                                                            |
 | launch      | 读取配置，再调用 ShellExecuteW 执行指定的命令。需要配置 <exe_name>.json。exe_name 可以是任意名称。适合作为 python 脚本的启动器 |
 | base_prompt | Bash shell 提示符，显示路径、git 分支、代码修改量                                                                              |
+| agent       | 一个简单的 LLM 客户端，依赖 xh，支持多轮对话                                                                                   |
 
 ## 编译
 
