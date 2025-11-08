@@ -6,7 +6,7 @@ import cmd;
 
 const NEW_LINE = "\r\n";
 
-macro String @style(String $style, String $str)
+macro String style(String $style, String $str)
 {
     return $style +++ $str +++ Ansi.RESET;
 }
@@ -127,7 +127,7 @@ fn void print_env_xxx(DString* out, ZString* environ)
             String[] xs = env.split(tmem, "=");
             if (xs.len > 0)
             {
-                out.appendf(@style(Ansi.ITALIC, " (%s)"), xs[1]);
+                out.appendf(style(Ansi.ITALIC, " (%s)"), xs[1]);
             }
         }
     }
@@ -138,12 +138,12 @@ fn void print_git(DString* out, Path cwd)
     if (try git_root = find_git_root(cwd))
     {
         Repo repo = { .root = git_root };
-        out.appendf(" @ " +++ @style(Ansi.YELLOW, "%s"), repo.branch_name());
+        out.appendf(" @ " +++ style(Ansi.YELLOW, "%s"), repo.branch_name());
 
         DiffState diff_state = repo.changes();
         if (diff_state.files_changed > 0)
         {
-            out.append(@style(Ansi.RED, "*"));
+            out.append(style(Ansi.RED, "*"));
             out.appendf(" +%d, -%d", diff_state.insertions, diff_state.deletions);
         }
     }
@@ -203,7 +203,7 @@ fn String short_view(Allocator allocator, String work_dir, bool use_short_name)
 fn void print_cwd(DString* out, Path cwd, bool use_short_name)
 {
     String cwd_str = cwd.str_view().replace(tmem, "\\", "/");
-    out.appendf(@style(Ansi.BLUE +++ Ansi.BOLD, "%s"), short_view(tmem, cwd_str, use_short_name));
+    out.appendf(style(Ansi.BLUE +++ Ansi.BOLD, "%s"), short_view(tmem, cwd_str, use_short_name));
 }
 
 struct CommandLineFlag
