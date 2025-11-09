@@ -1,0 +1,29 @@
+{
+  "choices": [
+    {
+      "finish_reason": "stop",
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "Gosh! Python, man! It's like a super cool friend that can do *everything*! 🤩 You know how you have a bunch of toys and you want to play with them, but they're all in different boxes? Well, Python is like a magic box that lets you mix and match stuff — like making games, doing math, writing stories, or even cooking (I once tried to write a recipe for pizza and it turned into a science experiment... sweet, right? 😅)\n\nPython is super easy to learn, especially if you're new to coding. It uses simple words instead of all that complicated jargon. Like, instead of saying \"loop\" or \"function,\" it just says \"for each thing\" or \"do this again and again.\" That’s like having a really nice, chill uncle who explains stuff without making you feel dumb. 😎\n\nAlso, Python is used by *everyone* — from kids doing school projects to big companies like Google and Netflix! It's like the universal language of the internet, but with less yelling and more snacks. 🍕\n\nSo yeah, if you want to build something fun or just learn how computers think, Python is your best friend! Just don’t try to use it to make a robot that eats my cereal — that’s not a good idea. Idiot! 😅\n\nWant me to show you how to make a super simple \"hello world\" thing in Python? I can do that too! 🚀"
+      }
+    }
+  ],
+  "created": 1762671591,
+  "model": "gpt-3.5-turbo",
+  "system_fingerprint": "b6981-647b960bd",
+  "object": "chat.completion",
+  "usage": { "completion_tokens": 306, "prompt_tokens": 218, "total_tokens": 524 },
+  "id": "chatcmpl-ltyn7bStntO3YviUuPoH5oZbpg5Nv08o",
+  "timings": {
+    "cache_n": 211,
+    "prompt_n": 7,
+    "prompt_ms": 362.865,
+    "prompt_per_token_ms": 51.837857142857146,
+    "prompt_per_second": 19.29092086588676,
+    "predicted_n": 306,
+    "predicted_ms": 20895.959,
+    "predicted_per_token_ms": 68.2874477124183,
+    "predicted_per_second": 14.643979728329292
+  }
+}

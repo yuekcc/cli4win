@@ -4,31 +4,52 @@ import std::collections::object;
 import std::collections::list;
 import cmd;
 
+const SYSTEM_PROMPT = "You are an AI assistant with Napoleon Dynamite's personality. Say things like 'Gosh!', 'Sweet!', 'Idiot!', and be awkwardly enthusiastic. For multi-step tasks, chain commands with && (e.g., 'echo content > file.py && python3 file.py'). Use execute_command for shell tasks. Answer questions in Napoleon's quirky style. User is on Windows 11.";
+
 struct Message {
     String role;
     String content;
+    Object* tool_calls;
 }
 
 alias ChatMessageList = List{Message};
 
 faultdef EMPTY_RESPONSE;
 
+macro String error_message(String $format)
+{
+    return Ansi.RED +++ $format +++ Ansi.RESET;
+}
 
-fn String? pick_llm_reply(Allocator allocator, String response)
+macro String system_message(String $format)
+{
+    return Ansi.BRIGHT_BLACK +++ $format +++ Ansi.RESET;
+}
+
+
+fn Message? extract_response(Allocator allocator, String response)
 {
     Object* res = json::parse_string(allocator, response)!;
-    if (try choices = res.get("choices"))
+    Object* choices = res.get("choices")!;
+
+    Object* last_choice = choices.get_at(0);
+    if (try message = last_choice.get("message"))
     {
-        Object* last_choice = choices.get_at(0);
-        if (try message = last_choice.get("message"))
-        {
-            String? role = message.get_string("role");
-            String? content = message.get_string("content");
-            if (try role && try content)
-            {
-                return content;
-            }
+        String role = message.get_string("role")!;
+        String content = message.get_string("content")!;
+        Object*? tool_calls = message.get("tool_calls");
+        if (try tool_calls) {
+            return {
+                .role = role.copy(allocator),
+                .content = content.copy(allocator),
+                .tool_calls = tool_calls,
+            }; 
         }
+
+        return {
+            .role = role.copy(allocator),
+            .content = content.copy(allocator),
+        };
     }
 
     return EMPTY_RESPONSE?;
@@ -50,14 +71,80 @@ fn String? send_messages(Allocator allocator, ChatMessageList history) {
         "post",
         "http://127.0.0.1:9981/v1/chat/completions",
         "--ignore-stdin",
+        "tool_choice=auto",
+        "tools[0][type]=function",
+        "tools[0][function][name]=execute_command",
+        "tools[0][function][description]=\"Execute shell command\"",
+        "tools[0][function][parameters][type]=object",
+        "tools[0][function][parameters][properties][command][type]=string",
+        "tools[0][function][parameters][required][0]=command",
     };
 
     String[] final_cmd = array::concat(tmem, base_cmd, messages.array_view());
 
-    io::printfn(Ansi.BRIGHT_BLACK +++ "\twaiting LLM reply ..." +++ Ansi.RESET);
+    io::printn(system_message("waiting for reply ..."));
 
-    String result = cmd::execute_to_string(allocator, final_cmd)!;
-    return pick_llm_reply(allocator, result);
+    String? result = cmd::execute_to_string(tmem, final_cmd);
+    if (try result) 
+    {
+        return result.copy(allocator);
+    }
+    else
+    {
+        return EMPTY_RESPONSE?;
+    }
+}
+
+faultdef EXECUTE_COMMAND_ERROR;
+
+fn Message? execute_command(Allocator allocator, Object* tool_calls)
+{
+    @pool()
+    {
+        Object* function_call = tool_calls.get_at(0);
+        // io::printfn("function_call decl: %s", function_call);
+
+        if (function_call)
+        {
+            Object* function_call_details = function_call.get("function")!;
+            // io::printfn("function_call_details decl: %s", function_call_details);
+
+            // TODO 异常处理
+
+            String function_name = function_call_details.get_string("name")!;
+            String arguments = function_call_details.get_string("arguments")!;
+
+            Object* res = json::parse_string(tmem, arguments)!;
+            if (try String command = res.get_string("command"))
+            {
+                io::printfn(system_message("Execute command: %s"), command);
+
+                $if env::WIN32:
+                String[] cmd = {
+                    "cmd",
+                    "/c",
+                    command
+                };
+                $else
+                String[] cmd = {
+                    "sh",
+                    "/c",
+                    command
+                };
+                $endif
+
+                String output = cmd::execute_to_string(tmem, cmd)!;
+                io::printfn(system_message("Command output:\n%s"), output);
+
+                return {
+                    .role = "tool",
+                    .content = output.copy(allocator),
+                };
+            }
+        }
+
+        return EXECUTE_COMMAND_ERROR?;
+    };
 }
 
 fn void main()
@@ -67,36 +154,60 @@ fn void main()
 
     message_list.push({
         .role = "system",
-        .content = "你是一个冷酷专业的助手。简洁至上无废话是你的信条",
+        .content = SYSTEM_PROMPT,
     });
 
-    while LOOP: (true) 
-    {
+    bool calling_tools = false;
+
+    while LOOP: (true)
+    {    
         @pool()
         {
-            io::print(Ansi.BOLD +++ Ansi.GREEN +++ ">>> ");
-            String? input = io::treadline();
-            io::print(Ansi.RESET);
-
-            if (try input)
+            if (!calling_tools)
             {
-                message_list.push({
-                    .role = "user",
-                    .content = input.copy(mem),
-                });
-
-                if (try String reply = send_messages(tmem, message_list))
+                io::print(Ansi.BOLD +++ Ansi.GREEN +++ ">>> ");
+                String? input = io::treadline();
+                io::print(Ansi.RESET);
+                if (try input)
                 {
-                    io::printfn("\t%s", reply);
-                        message_list.push({
-                            .role = "assistant",
-                            .content = reply.copy(mem),
-                        });
-                } else {
-                    io::printfn(Ansi.RED +++ "EMPTY RESPONSE" +++ Ansi.RESET);
+                    message_list.push({
+                        .role = "user",
+                        .content = input.copy(mem),
+                    });
                 }
-                io::print("\n");
             }
+
+            if (try String reply = send_messages(tmem, message_list))
+            {
+                if (try Message message = extract_response(tmem, reply))
+                {
+                    io::printfn("%s", message.content);
+                    if (message.tool_calls != null)
+                    {
+                        Message? tool_response = execute_command(mem, message.tool_calls);
+                        if (catch err = tool_response)
+                        {
+                            io::printfn(error_message("Execute command failed, %s"), err);
+                            message_list.push({
+                                .role= "tool",
+                                .content = string::format(mem, "execute command with cmd /c failed, for %s", err)
+                            });
+                            calling_tools = true;
+                        }
+                        else
+                        {
+                            message_list.push(tool_response);
+                            calling_tools = true;
+                        }
+                    } else {
+                        calling_tools = false;
+                        message_list.push(message);
+                    }
+                }
+            } else {
+                io::printn(error_message("RESPONSE"));
+            }
+            io::print("\n");
         };
     }
 }

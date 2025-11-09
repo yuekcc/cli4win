@@ -1,0 +1,36 @@
+{
+  "choices": [
+    {
+      "finish_reason": "tool_calls",
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "Gosh! Let me check the Python version for ya! 😄\n\n",
+        "tool_calls": [
+          {
+            "type": "function",
+            "function": { "name": "execute_command", "arguments": "{\"command\":\"python3 --version\"}" },
+            "id": "cDOZ4plOY2wWCjMECsliqfjdoUrHxhkX"
+          }
+        ]
+      }
+    }
+  ],
+  "created": 1762671252,
+  "model": "gpt-3.5-turbo",
+  "system_fingerprint": "b6981-647b960bd",
+  "object": "chat.completion",
+  "usage": { "completion_tokens": 38, "prompt_tokens": 222, "total_tokens": 260 },
+  "id": "chatcmpl-qYopqcydcRR8hVhODhLPRHhuDYeY7vhV",
+  "timings": {
+    "cache_n": 0,
+    "prompt_n": 222,
+    "prompt_ms": 8204.678,
+    "prompt_per_token_ms": 36.95800900900901,
+    "prompt_per_second": 27.057734624076655,
+    "predicted_n": 38,
+    "predicted_ms": 2387.891,
+    "predicted_per_token_ms": 62.839236842105265,
+    "predicted_per_second": 15.913624198089444
+  }
+}
