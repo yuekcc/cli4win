@@ -56,15 +56,20 @@ fn int real_main(int argc, String arg0)
 //     String arg0 = ZString.str_view((ZString)argv[0]);
 //     return real_main(argc, arg0);
 // }
-
 fn int main(
     Win32_HINSTANCE hInstance,
     Win32_HINSTANCE hPrevInstance,
     String[] argv,
     int nCmdShow
-) @winmain
+) @winmain @if(env::WIN32)
 {
     int argc = argv.len;
     String arg0 = argv[0];
     return real_main(argc, arg0);
 }
+
+fn void main() @if(!env::WIN32)
+{
+    io::printfn("only work on windows");
+}
+
