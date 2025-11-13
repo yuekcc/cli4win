@@ -104,7 +104,7 @@ fn Message? execute_command(Allocator allocator, Object* tool_calls)
     @pool()
     {
         Object* function_call = tool_calls.get_at(0);
-        // io::printfn("function_call decl: %s", function_call);
+        io::printfn(system_message("find function_call declares: %s"), function_call);
 
         if (function_call)
         {
@@ -135,12 +135,27 @@ fn Message? execute_command(Allocator allocator, Object* tool_calls)
                 };
                 $endif
 
-                String output = cmd::execute_to_string(tmem, cmd)!;
-                io::printfn(system_message("Command output:\n%s"), output);
+                cmd::CommandResult cmd_result = cmd::execute(tmem, cmd)!;
+                io::printfn(system_message("Command output:\n%s"), cmd_result.output);
+
+                String message;
+                if (cmd_result.code == 0)
+                {
+                    message = cmd_result.output.copy(allocator);
+                }
+                else
+                {
+                    message = string::format(
+                        allocator, 
+                        "Execute command failed.\nMaybe your should try in another way command.\nExecute command line: %s.\nReturn code is %d\nand feedback: %s", 
+                        command,
+                        cmd_result.code, 
+                        cmd_result.output);
+                }
 
                 return {
                     .role = "tool",
-                    .content = output.copy(allocator),
+                    .content = message,
                 };
             }
         }
