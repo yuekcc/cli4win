@@ -56,7 +56,7 @@ fn String Repo.run_git(Repo *self, Allocator allocator, String[] command_line) {
     String? result = cmd::execute_to_string(allocator, final_command_line);
     if (try result)
     {
-        return result;
+        return result.trim();
     }
 
     return "";

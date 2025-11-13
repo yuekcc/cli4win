@@ -2,7 +2,13 @@ module cmd;
 import std::os::process;
 import std::io;
 
-fn String? execute_to_string(Allocator allocator, String[] command_line)
+struct CommandResult
+{
+    int code;
+    String output;
+}
+
+fn CommandResult? execute(Allocator allocator, String[] command_line) 
 {
     process::SubProcess process = process::create(
         command_line, 
@@ -14,7 +20,7 @@ fn String? execute_to_string(Allocator allocator, String[] command_line)
         }
     )!;
     
-    isz return_code = process.join()!;
+    int return_code = process.join()!;
     $if env::DEBUG_SYMBOLS:
     if (return_code != 0)
     {
@@ -40,11 +46,24 @@ fn String? execute_to_string(Allocator allocator, String[] command_line)
 
         if (allocator == tmem)
         {
-            return result.str_view();
+            return {
+                .code = return_code,
+                .output = result.str_view()
+            };
         }
 
-        return result.copy_str(allocator);
+        return {
+            .code = return_code,
+            .output = result.copy_str(allocator)
+        };
     };
+}
+
+fn String? execute_to_string(Allocator allocator, String[] command_line)
+{
+
+    CommandResult cmd_result = execute(allocator, command_line)!;
+    return cmd_result.output;
 }
 
 fn void test_execute_to_string() @test
