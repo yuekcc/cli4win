@@ -29,6 +29,8 @@ macro String system_message(String $format)
 
 fn Message? extract_response(Allocator allocator, String response)
 {
+    io::printfn(system_message("server response: %s"), response);
+
     Object* res = json::parse_string(allocator, response)!;
     Object* choices = res.get("choices")!;
 
@@ -74,7 +76,7 @@ fn String? send_messages(Allocator allocator, ChatMessageList history) {
         "tool_choice=auto",
         "tools[0][type]=function",
         "tools[0][function][name]=execute_command",
-        "tools[0][function][description]=\"Execute shell command\"",
+        "tools[0][function][description]=\"Execute shell command. Use 'cmd /c as runner on Windows 11.'\"",
         "tools[0][function][parameters][type]=object",
         "tools[0][function][parameters][properties][command][type]=string",
         "tools[0][function][parameters][required][0]=command",
