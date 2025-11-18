@@ -7,7 +7,7 @@ import cmd;
 fn void main()
 {
     String[] final_command_line = {"curl", "-k", "https://www.baidu.com"};
-    String? result = cmd::execute_to_string(final_command_line);
+    String? result = cmd::execute_to_string(mem, final_command_line);
 
     if (catch err = result)
     {

@@ -22,16 +22,15 @@ fn CommandResult? execute(Allocator allocator, String[] command_line)
     
     int return_code = process.join()!;
     $if env::DEBUG_SYMBOLS:
-    if (return_code != 0)
-    {
-        io::printfn("return code = %d", return_code);
-    }
+        if (return_code != 0)
+        {
+            io::printfn("return code = %d", return_code);
+        }
     $endif
 
     @pool()
     {
         DString result = dstring::new(tmem);
-        usz count = 0;
         while(true)
         {
             char[512] buf @noinit;
@@ -41,7 +40,7 @@ fn CommandResult? execute(Allocator allocator, String[] command_line)
                 break;
             }
 
-            result.append((String)buf[:len]);
+            result.write(buf[:len])!;
         }
 
         if (allocator == tmem)
@@ -61,7 +60,6 @@ fn CommandResult? execute(Allocator allocator, String[] command_line)
 
 fn String? execute_to_string(Allocator allocator, String[] command_line)
 {
-
     CommandResult cmd_result = execute(allocator, command_line)!;
     return cmd_result.output;
 }
