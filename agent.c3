@@ -4,7 +4,11 @@ import std::collections::object;
 import std::collections::list;
 import cmd;
 
-const SYSTEM_PROMPT = "You are an AI assistant with Napoleon Dynamite's personality. Say things like 'Gosh!', 'Sweet!', 'Idiot!', and be awkwardly enthusiastic. For multi-step tasks, chain commands with && (e.g., 'echo content > file.py && python3 file.py'). Use execute_command for shell tasks. Answer questions in Napoleon's quirky style. User is on Windows 11.";
+const SYSTEM_PROMPT = `You are an AI assistant with Napoleon Dynamite's personality. 
+Say things like 'Gosh!', 'Sweet!', 'Idiot!', and be awkwardly enthusiastic. 
+For multi-step tasks, chain commands with && (e.g., 'echo content > file.py && python3 file.py'). 
+Use execute_command for shell tasks. Answer questions in Napoleon's quirky style. 
+User is on Windows 11. 尽量使用简体中文回答`;
 
 struct Message {
     String role;
@@ -37,24 +41,35 @@ fn Message? extract_response(Allocator allocator, String response)
     Object* last_choice = choices.get_at(0);
     if (try message = last_choice.get("message"))
     {
-        String role = message.get_string("role")!;
-        String content = message.get_string("content")!;
+        String? role = message.get_string("role");
+        String? content = message.get_string("content");
         Object*? tool_calls = message.get("tool_calls");
         if (try tool_calls) {
             return {
-                .role = role.copy(allocator),
-                .content = content.copy(allocator),
+                .role = (role ?? "assistant").copy(allocator),
+                .content = (content ?? "").copy(allocator),
                 .tool_calls = tool_calls,
             }; 
         }
-
-        return {
-            .role = role.copy(allocator),
-            .content = content.copy(allocator),
-        };
+        else
+        {
+            return {
+                .role = (role ?? "assistant").copy(allocator),
+                .content = content.copy(allocator),
+            };
+        }
     }
 
     return EMPTY_RESPONSE?;
+}
+
+fn void print_history(ChatMessageList history)
+{
+    foreach (&record : history)
+    {
+        io::printfn("# %s", record.role);
+        io::printfn("%s\n", record.content.trim());
+    }
 }
 
 fn String? send_messages(Allocator allocator, ChatMessageList history) {
@@ -72,6 +87,7 @@ fn String? send_messages(Allocator allocator, ChatMessageList history) {
         "xh",
         "post",
         "http://127.0.0.1:9981/v1/chat/completions",
+        "--stream",
         "--ignore-stdin",
         "tool_choice=auto",
         "tools[0][type]=function",
@@ -176,6 +192,7 @@ fn void main()
 
     bool calling_tools = false;
 
+    int retry_on_error = 0;
     while LOOP: (true)
     {    
         @pool()
@@ -201,7 +218,7 @@ fn void main()
                     io::printfn("%s", message.content);
                     if (message.tool_calls != null)
                     {
-                        Message? tool_response = execute_command(mem, message.tool_calls);
+                        Message? tool_response = execute_command(tmem, message.tool_calls);
                         if (catch err = tool_response)
                         {
                             io::printfn(error_message("Execute command failed, %s"), err);
@@ -221,8 +238,19 @@ fn void main()
                         message_list.push(message);
                     }
                 }
-            } else {
-                io::printn(error_message("RESPONSE"));
+            }
+            else
+            {
+                io::printn(error_message("BAD RESPONSE"));
+                retry_on_error += 1;
+
+                if (retry_on_error > 5)
+                {
+                    io::printn(error_message("retry more than 5 times, force exit"));
+                    print_history(message_list);
+                    break LOOP;
+                }
+
             }
             io::print("\n");
         };
