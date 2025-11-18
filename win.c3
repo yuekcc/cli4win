@@ -5,18 +5,22 @@ import std::io;
 import std::io::path;
 import std::os::win32;
 
-alias w = module std::os::win32;
+macro cast_int(Win32_HINSTANCE instance)
+{
+    return (int)(iptr)instance;
+}
 
-// 1 = SW_NORMAL，激活并显示窗口。如果窗口最小化、最大化或排列，系统会将其还原到其原始大小和位置。应用程序应在首次显示窗口时指定此标志
-const SHOW_CMD = 1; 
+// 激活并显示窗口
+// 如果窗口最小化、最大化或排列，系统会将其还原到其原始大小和位置。应用程序应在首次显示窗口时指定此标志
+const SW_NORMAL = 1; 
 
-extern fn w::Win32_HINSTANCE shellExecuteW(
-    w::Win32_HWND hwnd,
-    w::Win32_LPCWSTR lpOperation,
-    w::Win32_LPCWSTR lpFile,
-    w::Win32_LPCWSTR lpParameters,
-    w::Win32_LPCWSTR lpDirectory,
-    w::Win32_INT32 nShowCmd,
+extern fn Win32_HINSTANCE shell_execute(
+    Win32_HWND hwnd,
+    Win32_LPCWSTR lpOperation,
+    Win32_LPCWSTR lpFile,
+    Win32_LPCWSTR lpParameters,
+    Win32_LPCWSTR lpDirectory,
+    Win32_INT32 nShowCmd,
 ) @cname("ShellExecuteW");
 
 fn bool shell_exec(String work_dir, String target, String parameters) 
@@ -27,26 +31,26 @@ fn bool shell_exec(String work_dir, String target, String parameters)
         io::printfn("parameters: %s", parameters);
     $endif
 
-    $if env::WIN32:
-        String operation = "open";
-        w::Win32_HINSTANCE res = shellExecuteW(
-            null, // hwnd
-            operation.to_temp_utf16()!!, // lpOperation
-            target.to_temp_utf16()!!, // lpFile
-            parameters.to_temp_utf16()!!, // lpParameters
-            work_dir.to_temp_utf16()!!, // lpDirectory
-            SHOW_CMD, // nShowCmd
-        );
-
-        if (res > (w::Win32_HINSTANCE)32) 
-        {
-            return true;
-        }
-
-        io::eprintfn("Failed to open file (%d)", (int)(iptr)res);
-        return false;
-    $else
+    $if !env::WIN32:
         io::eprintfn("Only work in Windows");
         return false;
     $endif
+
+    String operation = "open";
+    Win32_HINSTANCE result = shell_execute(
+        null, // hwnd
+        operation.to_temp_utf16()!!, // lpOperation
+        target.to_temp_utf16()!!, // lpFile
+        parameters.to_temp_utf16()!!, // lpParameters
+        work_dir.to_temp_utf16()!!, // lpDirectory
+        SW_NORMAL, // nShowCmd
+    );
+
+    if (cast_int(result) > 32) 
+    {
+        return true;
+    }
+
+    io::eprintfn("Failed to open file (%d)", cast_int(result));
+    return false;
 }
