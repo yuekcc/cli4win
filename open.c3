@@ -3,44 +3,47 @@ import std::io::path;
 import win;
 import std::os::win32;
 
-fn int open_uri(String cwd, String uri)
+fn int open_uri(String cwd, String uri) @inline
 {
     return win::shell_exec(cwd, uri, "") ? 0 : 1;
 }
 
-fn int open_file(String cwd, String file_path, int argc, ZString* argv)
+fn int open_file(String cwd, String file_path, int argc, ZString* argv) @inline
 {
-    Path? target = path::new(tmem, file_path);
-    if (catch reason = target)
+    @pool()
     {
-        io::eprintfn("Error, invalid path. Input = %s", file_path);
-        return 1;
-    }
-
-    if (!path::exists(target))
-    {        
-        io::eprintfn("Error, file not found. File path = %s", target);
-        return 1;
-    }
-
-    DString parameter = dstring::new(tmem);
-    if (argc > 2)
-    {
-        for (usz i = 2; argv[i] != null; i++)
+        Path? target = path::new(tmem, file_path);
+        if (catch reason = target)
         {
-            parameter.append(argv[i].str_view());
-            parameter.append(" ");
+            io::eprintfn("Error, invalid path. Input = %s", file_path);
+            return 1;
         }
-    }
+
+        if (!path::exists(target))
+        {        
+            io::eprintfn("Error, file not found. File path = %s", target);
+            return 1;
+        }
+
+        DString parameter = dstring::new(tmem);
+        if (argc > 2)
+        {
+            for (usz i = 2; argv[i] != null; i++)
+            {
+                parameter.append(argv[i].str_view());
+                parameter.append(" ");
+            }
+        }
 
 
-    return win::shell_exec(cwd, target.str_view(), parameter.str_view()) ? 0 : 1;
+        return win::shell_exec(cwd, target.str_view(), parameter.str_view()) ? 0 : 1;
+    };
 }
 
 
 fn int main(int argc, ZString* argv)
 {
-    Path cwd = path::cwd(tmem)!!;
+    Path cwd = path::cwd(mem)!!;
 
     // 目标默认为当前目录
     String target_file = ".";
