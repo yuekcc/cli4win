@@ -1,0 +1,1 @@
+copied from [jWrite](https://github.com/jonaskgandersson/jWrite)

@@ -1,0 +1,63 @@
+module jwrite;
+
+/* Error Codes */
+const int JWRITE_OK = 0;
+const int JWRITE_BUF_FULL = 1;      /* output buffer full */
+const int JWRITE_NOT_ARRAY = 2;     /* tried to write Array value into Object */
+const int JWRITE_NOT_OBJECT = 3;    /* tried to write Object key/value into Array */
+const int JWRITE_STACK_FULL = 4;    /* array/object nesting > JWRITE_STACK_DEPTH */
+const int JWRITE_STACK_EMPTY = 5;   /* stack underflow error (too many 'end's) */
+const int JWRITE_NEST_ERROR = 6;    /* not all objects closed at jwClose()*/
+const int JWRITE_NOT_VALUE = 7;     /* tried to write value without key */
+const int JWRITE_MISSING_VALUE = 8; /* object missing value */
+
+const int JWRITE_STACK_DEPTH = 32;
+
+enum JwNodeType : const
+{
+    JW_OBJECT = 1, 
+    JW_ARRAY, 
+    JW_VALUE,
+}
+
+struct JwNodeStack
+{
+  JwNodeType nodeType;
+  int elementNo;
+}
+
+struct JwControl
+{
+  char* buffer;           /* pointer to application's buffer */
+  uint buflen;              /* length of buffer */
+  char* bufp;             /* current write position in buffer */
+  char[32] tmpbuf;          /* local buffer for int/double convertions */
+  int error;                /* error code */
+  int callNo;               /* API call on which error occurred */
+  JwNodeStack[JWRITE_STACK_DEPTH] nodeStack; /* stack of array/object nodes */
+  int stackpos;
+  int isPretty;             /* 1= pretty output (inserts \n and spaces) */
+}
+
+extern fn void open(
+    JwControl *jwc,
+    char* buffer, 
+    uint buf_len, 
+    JwNodeType root_type, 
+    int is_pretty) @cname("jwOpen");
+
+extern fn int close(JwControl *jwc) @cname("jwClose");
+
+extern fn int error_pos(JwControl *jwc) @cname("jwErrorPos");
+extern fn ZString error_to_string(int err) @cname("jwErrorToString");
+
+extern fn int add_key(JwControl *jwc, ZString key) @cname("jw_key");
+extern fn int add_string(JwControl *jwc, ZString value) @cname("jw_string");
+extern fn int add_int(JwControl *jwc, int value) @cname("jw_int");
+extern fn int add_double(JwControl *jwc, double value) @cname("jw_double");
+extern fn int add_boolean(JwControl *jwc, int oneOrZero) @cname("jw_bool");
+extern fn void add_null(JwControl *jwc) @cname("jw_null");
+extern fn void add_object(JwControl *jwc) @cname("jw_object");
+extern fn void add_array(JwControl *jwc) @cname("jw_array");
+extern fn void end(JwControl *jwc) @cname("jwEnd");
+extern fn void raw(JwControl *jwc, ZString row_text) @cname("jw_raw");

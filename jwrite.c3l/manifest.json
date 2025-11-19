@@ -1,0 +1,19 @@
+{ 
+  "provides" : "jwrite",
+  "c-sources": ["./jwrite.c", "./jwrite.h"],
+  "targets" : {
+    "macos-x64" : {
+      "link-args" : [],
+      "dependencies" : [],
+      "linked-libraries" : []
+    },
+    "linux-x64" : {
+      "link-args" : [],
+      "dependencies" : [],
+      "linked-libraries" : []
+    },
+	"windows-x64" : {
+		"linked-libraries" : []
+	}
+  }
+}
