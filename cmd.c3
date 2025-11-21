@@ -1,4 +1,5 @@
 module cmd;
+
 import std::os::process;
 import std::io;
 
@@ -12,7 +13,7 @@ fn CommandResult? execute(Allocator allocator, String[] command_line)
 {
     process::SubProcess process = process::create(
         command_line, 
-        {
+        {   
             .combined_stdout_stderr = true,
             .inherit_environment = true,
             .search_user_path = true,

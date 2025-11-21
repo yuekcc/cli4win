@@ -4,16 +4,16 @@ import std::collections::object;
 import std::collections::list;
 import cmd;
 
-const SYSTEM_PROMPT = `You are an AI assistant with Napoleon Dynamite's personality. 
-Say things like 'Gosh!', 'Sweet!', 'Idiot!', and be awkwardly enthusiastic. 
-For multi-step tasks, chain commands with && (e.g., 'echo content > file.py && python3 file.py'). 
-Use execute_command for shell tasks. Answer questions in Napoleon's quirky style. 
-User is on Windows 11. 尽量使用简体中文回答`;
+const String SYSTEM_PROMPT = `You are an AI assistant with Napoleon Dynamite's personality.` 
+    +++ `Say things like 'Gosh!', 'Sweet!', 'Idiot!', and be awkwardly enthusiastic. `
+    +++ `Answer questions in Napoleon's quirky style. `
+    +++ `User is on Windows 11. 尽量使用简体中文回答`;
 
 struct Message {
     String role;
     String content;
     Object* tool_calls;
+    String id;
 }
 
 alias ChatMessageList = List{Message};
@@ -72,33 +72,85 @@ fn void print_history(ChatMessageList history)
     }
 }
 
-fn String? send_messages(Allocator allocator, ChatMessageList history) {
+fn Object* init_request(Allocator allocator)
+{
+    Object* parameters_obj = object::new_obj(allocator);
+    parameters_obj.set("type", "object");
 
-    List{String} messages;
-    messages.init(tmem);
+    Object* function_obj = object::new_obj(allocator);
+    function_obj.set("name", "execute_command");
+    function_obj.set("description", "Execute shell command. For multi-step tasks, chain commands with && (e.g., 'echo content > file.py && python file.py'). ");
+    function_obj.set_object("parameters", parameters_obj);
+
+    Object* tools = object::new_obj(allocator);
+    Object* tool = object::new_obj(allocator);
+    tool.set("type", "function");
+    tool.set_object("function", function_obj);
+    tools.push(tool);
+
+    Object* obj = object::new_obj(allocator);
+    obj.set("tool_choice", "auto");
+    obj.set_object("tools", tools);
+
+    // io::printfn("%s", obj);
+    return obj;
+}
+
+fn String escape(String s, Allocator allocator, bool strip_quotes = true) @local
+{
+    // Conservative allocation: most strings need minimal escaping
+    usz initial_capacity = s.len + s.len / 5 + 2; // ~1.2x + quotes
+    DString result = dstring::new_with_capacity(allocator, initial_capacity);
+
+    if (!strip_quotes) result.append_char('"');
+
+    foreach (char c : s)
+    {
+        switch (c)
+        {
+            case '"':  result.append(`\"`);
+            case '\\': result.append(`\\`);
+            case '\b': result.append(`\b`);
+            case '\f': result.append(`\f`);
+            case '\n': result.append(`\n`);
+            case '\r': result.append(`\r`);
+            case '\t': result.append(`\t`);
+            case '\v': result.append(`\v`);
+            case '\0': result.append(`\0`);
+            default:
+                result.append_char(c);
+        }
+    }
+
+    if (!strip_quotes) result.append_char('"');
+    return result.copy_str(allocator);
+}
+
+fn String? send_messages(Allocator allocator, ChatMessageList history)
+{
+    Object* request = init_request(tmem);
+    Object* messages = object::new_obj(tmem);
 
     foreach (i, &record : history)
     {
-        messages.push(string::format(tmem, "messages[%d][role]=%s", i, record.role));
-        messages.push(string::format(tmem, "messages[%d][content]=%s", i, record.content));
+        Object* message = object::new_obj(tmem);
+        message.set("role", record.role);
+        message.set("content", escape(record.content, tmem)); // HACK
+        messages.push(message);
     }
 
-    String[] base_cmd = {
+    request.set_object("messages", messages);
+    String filename = "req.json";
+    file::save(filename, string::format(tmem, "%s", request))!;
+
+    String[] final_cmd = {
         "xh",
         "post",
         "http://127.0.0.1:9981/v1/chat/completions",
         "--stream",
         "--ignore-stdin",
-        "tool_choice=auto",
-        "tools[0][type]=function",
-        "tools[0][function][name]=execute_command",
-        "tools[0][function][description]=\"Execute shell command. Use 'cmd /c as runner on Windows 11.'\"",
-        "tools[0][function][parameters][type]=object",
-        "tools[0][function][parameters][properties][command][type]=string",
-        "tools[0][function][parameters][required][0]=command",
+        string::format(tmem, "@%s", filename),
     };
-
-    String[] final_cmd = array::concat(tmem, base_cmd, messages.array_view());
 
     io::printn(system_message("waiting for reply ..."));
 
@@ -131,6 +183,9 @@ fn Message? execute_command(Allocator allocator, Object* tool_calls)
 
             String function_name = function_call_details.get_string("name")!;
             String arguments = function_call_details.get_string("arguments")!;
+            String id = function_call.get_string("id")!;
+
+            io::printfn(system_message("get name = %s, arguments = %s, id = %s"), function_name, arguments, id);
 
             Object* res = json::parse_string(tmem, arguments)!;
             if (try String command = res.get_string("command"))
@@ -138,17 +193,9 @@ fn Message? execute_command(Allocator allocator, Object* tool_calls)
                 io::printfn(system_message("Execute command: %s"), command);
 
                 $if env::WIN32:
-                String[] cmd = {
-                    "cmd",
-                    "/c",
-                    command
-                };
+                    String[] cmd = { "cmd", "/c", command };
                 $else
-                String[] cmd = {
-                    "sh",
-                    "/c",
-                    command
-                };
+                    String[] cmd = { "sh", "-c", command };
                 $endif
 
                 cmd::CommandResult cmd_result = cmd::execute(tmem, cmd)!;
@@ -157,12 +204,12 @@ fn Message? execute_command(Allocator allocator, Object* tool_calls)
                 String message;
                 if (cmd_result.code == 0)
                 {
-                    message = cmd_result.output.copy(allocator);
+                    message = cmd_result.output;
                 }
                 else
                 {
                     message = string::format(
-                        allocator, 
+                        tmem, 
                         "Execute command failed.\nMaybe your should try in another way command.\nExecute command line: %s.\nReturn code is %d\nand feedback: %s", 
                         command,
                         cmd_result.code, 
@@ -171,7 +218,8 @@ fn Message? execute_command(Allocator allocator, Object* tool_calls)
 
                 return {
                     .role = "tool",
-                    .content = message,
+                    .content = message.copy(allocator),
+                    .id = id.copy(allocator),
                 };
             }
         }
@@ -213,12 +261,12 @@ fn void main()
 
             if (try String reply = send_messages(tmem, message_list))
             {
-                if (try Message message = extract_response(tmem, reply))
+                if (try Message message = extract_response(mem, reply))
                 {
                     io::printfn("%s", message.content);
                     if (message.tool_calls != null)
                     {
-                        Message? tool_response = execute_command(tmem, message.tool_calls);
+                        Message? tool_response = execute_command(mem, message.tool_calls);
                         if (catch err = tool_response)
                         {
                             io::printfn(error_message("Execute command failed, %s"), err);
@@ -233,26 +281,27 @@ fn void main()
                             message_list.push(tool_response);
                             calling_tools = true;
                         }
-                    } else {
+                    }
+                    else
+                    {
                         calling_tools = false;
                         message_list.push(message);
                     }
                 }
+
+                io::print("\n");
+                continue LOOP;
             }
-            else
+
+            io::printn(error_message("BAD RESPONSE"));
+            retry_on_error += 1;
+
+            if (retry_on_error > 5)
             {
-                io::printn(error_message("BAD RESPONSE"));
-                retry_on_error += 1;
-
-                if (retry_on_error > 5)
-                {
-                    io::printn(error_message("retry more than 5 times, force exit"));
-                    print_history(message_list);
-                    break LOOP;
-                }
-
+                io::printn(error_message("retry more than 5 times, force exit"));
+                print_history(message_list);
+                break LOOP;
             }
-            io::print("\n");
         };
     }
 }
