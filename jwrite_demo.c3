@@ -33,7 +33,7 @@ fn void main()
                             jwrite::add_key(&jwc, "type");
                             jwrite::add_string(&jwc, "string");
                             jwrite::add_key(&jwc, "description");
-                            jwrite::add_string(&jwc, "only support on command line. use '&&' to concat two or more commands");
+                            jwrite::add_string(&jwc, "只支持单行命令。only support one command line. use '&&' to concat two or more commands");
                             jwrite::end(&jwc);
                         jwrite::end(&jwc);
                     jwrite::add_key(&jwc, "required");

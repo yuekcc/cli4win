@@ -18,7 +18,9 @@ struct Message {
 
 alias ChatMessageList = List{Message};
 
-faultdef EMPTY_RESPONSE;
+faultdef
+    EMPTY_RESPONSE, // 空白请求
+    EXECUTE_COMMAND_ERROR; // 执行命令失败
 
 macro String error_message(String $format)
 {
@@ -41,23 +43,15 @@ fn Message? extract_response(Allocator allocator, String response)
     Object* last_choice = choices.get_at(0);
     if (try message = last_choice.get("message"))
     {
-        String? role = message.get_string("role");
-        String? content = message.get_string("content");
+        String role = message.get_string("role") ?? "assistant";
+        String content = message.get_string("content") ?? "";
         Object*? tool_calls = message.get("tool_calls");
-        if (try tool_calls) {
-            return {
-                .role = (role ?? "assistant").copy(allocator),
-                .content = (content ?? "").copy(allocator),
-                .tool_calls = tool_calls,
-            }; 
-        }
-        else
-        {
-            return {
-                .role = (role ?? "assistant").copy(allocator),
-                .content = content.copy(allocator),
-            };
-        }
+
+        return {
+            .role = role.copy(allocator),
+            .content = content.copy(allocator),
+            .tool_calls = tool_calls ?? null,
+        };
     }
 
     return EMPTY_RESPONSE?;
@@ -153,19 +147,17 @@ fn String? send_messages(Allocator allocator, ChatMessageList history)
     };
 
     io::printn(system_message("waiting for reply ..."));
-
-    String? result = cmd::execute_to_string(tmem, final_cmd);
-    if (try result) 
+    CommandResult xh_result = cmd::execute(tmem, final_cmd)!;
+    if (xh_result.code == 0)
     {
-        return result.copy(allocator);
+        return xh_result.output.copy(allocator);
     }
     else
     {
+        io::printfn(error_message("xh got failed. code = %d, message = %s"), xh_result.code, xh_result.output);
         return EMPTY_RESPONSE?;
     }
 }
-
-faultdef EXECUTE_COMMAND_ERROR;
 
 fn Message? execute_command(Allocator allocator, Object* tool_calls)
 {
@@ -198,7 +190,7 @@ fn Message? execute_command(Allocator allocator, Object* tool_calls)
                     String[] cmd = { "sh", "-c", command };
                 $endif
 
-                cmd::CommandResult cmd_result = cmd::execute(tmem, cmd)!;
+                CommandResult cmd_result = cmd::execute(tmem, cmd)!;
                 io::printfn(system_message("Command output:\n%s"), cmd_result.output);
 
                 String message;
