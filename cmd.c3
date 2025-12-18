@@ -12,15 +12,15 @@ struct CommandResult
 fn CommandResult? execute(Allocator allocator, String[] command_line) 
 {
     process::SubProcess process = process::create(
-        command_line, 
-        {   
+        command_line,
+        {
             .combined_stdout_stderr = true,
             .inherit_environment = true,
             .search_user_path = true,
             .no_window = true,
         }
     )!;
-    
+
     int return_code = process.join()!;
     $if env::DEBUG_SYMBOLS:
         if (return_code != 0)
@@ -73,7 +73,6 @@ fn void test_execute_to_string() @test
     // io::printfn("%s", result);
     assert(result.contains("<html>") && result.contains("</html>"));
 }
-
 
 fn void test_non_zero_return_code() @test
 {

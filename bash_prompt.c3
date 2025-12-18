@@ -53,19 +53,19 @@ struct DiffState
 
 fn String Repo.run_git(Repo *self, Allocator allocator, String[] command_line) {
     String[] final_command_line = array::concat(tmem, (String[]){ "git", "-C", self.root.str_view() }, command_line);
-    String? result = cmd::execute_to_string(allocator, final_command_line);
+    String? result = cmd::execute_to_string(tmem, final_command_line);
     if (try result)
     {
-        return result.trim();
+        return result.trim().copy(allocator);
     }
 
-    return "";
+    return "".copy(allocator);
 }
 
-fn String Repo.branch_name(Repo *self)
+fn String Repo.branch_name(Repo *self, Allocator allocator)
 {
     String name = self.run_git(tmem, { "rev-parse", "--abbrev-ref", "HEAD" });
-    return name.len == 0 ? "HEAD" : name;
+    return name.len == 0 ? "HEAD".copy(allocator) : name.copy(allocator);
 }
 
 fn DiffState Repo.changes(Repo *self)
@@ -138,7 +138,7 @@ fn void print_git(DString* out, Path cwd)
     if (try git_root = find_git_root(cwd))
     {
         Repo repo = { .root = git_root };
-        out.appendf(" @ " +++ style(Ansi.YELLOW, "%s"), repo.branch_name());
+        out.appendf(" @ " +++ style(Ansi.YELLOW, "%s"), repo.branch_name(tmem));
 
         DiffState diff_state = repo.changes();
         if (diff_state.files_changed > 0)
@@ -192,11 +192,6 @@ fn String short_view(Allocator allocator, String work_dir, bool use_short_name)
         }
     }
     
-    if (allocator == tmem)
-    {
-        return buf.str_view();
-    }
-
     return buf.copy_str(allocator);
 }
 
