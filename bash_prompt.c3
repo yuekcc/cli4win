@@ -64,8 +64,17 @@ fn String Repo.run_git(Repo *self, Allocator allocator, String[] command_line) {
 
 fn String Repo.branch_name(Repo *self, Allocator allocator)
 {
-    String name = self.run_git(tmem, { "rev-parse", "--abbrev-ref", "HEAD" });
-    return name.len == 0 ? "HEAD".copy(allocator) : name.copy(allocator);
+    if (try head_file = self.root.tappend(".git/HEAD")) 
+    {
+        String content = (String)file::load_temp(head_file.str_view()) ?? "";
+        io::printfn("%s content = %s", head_file.str_view(), content);
+        String[] paths = content.trim().tsplit("/");
+        return paths[paths.len - 1].copy(allocator);
+    }
+    else
+    {
+        return "";
+    }
 }
 
 fn DiffState Repo.changes(Repo *self)
