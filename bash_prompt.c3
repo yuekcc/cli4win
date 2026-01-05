@@ -67,7 +67,6 @@ fn String Repo.branch_name(Repo *self, Allocator allocator)
     if (try head_file = self.root.tappend(".git/HEAD")) 
     {
         String content = (String)file::load_temp(head_file.str_view()) ?? "";
-        io::printfn("%s content = %s", head_file.str_view(), content);
         String[] paths = content.trim().tsplit("/");
         return paths[paths.len - 1].copy(allocator);
     }
@@ -79,48 +78,40 @@ fn String Repo.branch_name(Repo *self, Allocator allocator)
 
 fn DiffState Repo.changes(Repo *self)
 {
-    DiffState result = {};
+    
 
-    String output = self.run_git(tmem, { "diff", "--shortstat", "HEAD" });
+    String output = self.run_git(tmem, { "diff", "--numstat", "HEAD" });
     if (output.len == 0) {
-        return result;
+        return (DiffState) {};
     }
 
-    String[] lines = output.split(tmem, "\n");
+    DiffState result = {};
 
+    String[] lines = output.split(tmem, "\n");
     for (usz i = 0; i < lines.len; i++)
     {
-        if (try lines[i].index_of("file"))
+        String[] tokens = lines[i].split(tmem, "\t");
+        if (tokens.len > 2)
         {
-            String[] tokens = lines[i].split(tmem, " ");
-            uint num = 0;
-
-            for (usz j = 0; j < tokens.len; j++) 
+            String added = tokens[0];
+            String deleted = tokens[1];
+            if (try num = added.to_uint())
             {
-                String token = tokens[j];
-                if (try num_ = token.to_uint()) {
-                    num = num_;
-                    continue;
-                }
-
-                if (token.starts_with("file"))
-                {
-                    result.files_changed = num;
-                    continue;
-                }
-                else if (token.starts_with("insertion"))
-                {
-                    result.insertions = num;
-                    continue;
-                }
-                else if (token.starts_with("deletion"))
-                {
-                    result.deletions = num;
-                    continue;
-                }
+                result.insertions += num;
             }
-            return result;
+
+            if (try num = deleted.to_uint())
+            {
+                result.deletions += num;
+            }
         }
+
+        result.files_changed += 1;
+    }
+
+    if (result.insertions == 0 && result.deletions == 0)
+    {
+        return (DiffState) {};
     }
 
     return result;
