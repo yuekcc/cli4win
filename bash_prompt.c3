@@ -67,8 +67,7 @@ fn String Repo.branch_name(Repo *self, Allocator allocator)
     if (try head_file = self.root.tappend(".git/HEAD")) 
     {
         String content = (String)file::load_temp(head_file.str_view()) ?? "";
-        String[] paths = content.trim().tsplit("/");
-        return paths[paths.len - 1].copy(allocator);
+        return content.trim().replace(allocator, "ref: refs/heads/", "");
     }
     else
     {
