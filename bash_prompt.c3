@@ -15,12 +15,12 @@ faultdef
     GIT_ROOT_NOT_FOUND,
     PARSE_DIFF_STATE_FAILED;
 
-fn Path? find_git_root(Path cwd)
+fn Path? find_git_root(Allocator allocator, Path cwd)
 {
     Path target = cwd;
     for (;;)
     {
-        Path git_dir = target.append(tmem, ".git")!;
+        Path git_dir = target.append(allocator, ".git")!;
         if (path::exists(git_dir))
         {
             return git_dir.parent();
@@ -59,7 +59,7 @@ fn String Repo.run_git(Repo *self, Allocator allocator, String[] command_line) {
         return result.trim().copy(allocator);
     }
 
-    return "".copy(allocator);
+    return "";
 }
 
 fn String Repo.branch_name(Repo *self, Allocator allocator)
@@ -67,7 +67,7 @@ fn String Repo.branch_name(Repo *self, Allocator allocator)
     if (try head_file = self.root.tappend(".git/HEAD")) 
     {
         String content = (String)file::load_temp(head_file.str_view()) ?? "";
-        return content.trim().replace(allocator, "ref: refs/heads/", "");
+        return content.treplace("ref: refs/heads/", "").trim().copy(allocator);
     }
     else
     {
@@ -134,7 +134,7 @@ fn void print_env_xxx(DString* out, ZString* environ)
 
 fn void print_git(DString* out, Path cwd)
 {
-    if (try git_root = find_git_root(cwd))
+    if (try git_root = find_git_root(tmem, cwd))
     {
         Repo repo = { .root = git_root };
         out.appendf(" @ " +++ style(Ansi.YELLOW, "%s"), repo.branch_name(tmem));
