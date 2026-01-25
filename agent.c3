@@ -68,12 +68,22 @@ fn void print_history(ChatMessageList history)
 
 fn Object* init_request(Allocator allocator)
 {
+    Object* command_decl_obj = object::new_obj(allocator);
+    command_decl_obj.set("type", "string");
+    command_decl_obj.set("description", "The command to run");
+
+    Object* properties_obj = object::new_obj(allocator);
+    properties_obj.set("command", command_decl_obj);
+    Object* required_obj = object::new_obj(allocator);
+    required_obj.push("command");
     Object* parameters_obj = object::new_obj(allocator);
     parameters_obj.set("type", "object");
+    parameters_obj.set("properties", properties_obj);
+    parameters_obj.set("required", required_obj);
 
     Object* function_obj = object::new_obj(allocator);
     function_obj.set("name", "execute_command");
-    function_obj.set("description", "Execute shell command. For multi-step tasks, chain commands with && (e.g., 'echo content > file.py && python file.py'). ");
+    function_obj.set("description", "Execute shell command. For multi-step tasks, chain commands with && (e.g., 'echo content > file.py && python file.py'). User is using BASH as shell.");
     function_obj.set_object("parameters", parameters_obj);
 
     Object* tools = object::new_obj(allocator);
@@ -86,7 +96,7 @@ fn Object* init_request(Allocator allocator)
     obj.set("tool_choice", "auto");
     obj.set_object("tools", tools);
 
-    // io::printfn("%s", obj);
+    io::printfn("%s", obj);
     return obj;
 }
 
@@ -140,7 +150,7 @@ fn String? send_messages(Allocator allocator, ChatMessageList history)
     String[] final_cmd = {
         "xh",
         "post",
-        "http://127.0.0.1:9981/v1/chat/completions",
+        "http://127.0.0.1:8001/v1/chat/completions",
         "--stream",
         "--ignore-stdin",
         string::format(tmem, "@%s", filename),
@@ -185,9 +195,9 @@ fn Message? execute_command(Allocator allocator, Object* tool_calls)
                 io::printfn(system_message("Execute command: %s"), command);
 
                 $if env::WIN32:
-                    String[] cmd = { "cmd", "/c", command };
+                    String[] cmd = { "bash", "-ic", command };
                 $else
-                    String[] cmd = { "sh", "-c", command };
+                    String[] cmd = { "bash", "-ic", command };
                 $endif
 
                 CommandResult cmd_result = cmd::execute(tmem, cmd)!;
