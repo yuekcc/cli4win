@@ -13,5 +13,5 @@ for src_file in ${sources[@]};
 do
     tool_name="${src_file%.*}"
     echo "build tool: ${tool_name}"
-    c3c compile -Oz -o dist/$tool_name $src_file win.c3 cmd.c3
+    c3c compile -O2 -o dist/$tool_name $src_file win.c3 cmd.c3
 done

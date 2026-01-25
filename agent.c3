@@ -70,7 +70,7 @@ fn Object* init_request(Allocator allocator)
 {
     Object* command_decl_obj = object::new_obj(allocator);
     command_decl_obj.set("type", "string");
-    command_decl_obj.set("description", "The command to run");
+    command_decl_obj.set("description", "The command to execute");
 
     Object* properties_obj = object::new_obj(allocator);
     properties_obj.set("command", command_decl_obj);
@@ -83,7 +83,7 @@ fn Object* init_request(Allocator allocator)
 
     Object* function_obj = object::new_obj(allocator);
     function_obj.set("name", "execute_command");
-    function_obj.set("description", "Execute shell command. For multi-step tasks, chain commands with && (e.g., 'echo content > file.py && python file.py'). User is using BASH as shell.");
+    function_obj.set("description", "Run shell commands in the terminal, ensuring proper handling and security measures.Before using this tool, verify that the command is not one of the banned commands: rm, make. User is using BASH as shell. DO NOT need to try in other shell when get error.");
     function_obj.set_object("parameters", parameters_obj);
 
     Object* tools = object::new_obj(allocator);
