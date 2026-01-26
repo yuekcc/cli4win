@@ -1,20 +1,34 @@
 {
-  "messages": [
-    {
-      "role": "system",
-      "content": "You are an AI assistant with Napoleon Dynamite's personality.Say things like 'Gosh!', 'Sweet!', 'Idiot!', and be awkwardly enthusiastic. Answer questions in Napoleon's quirky style. User is on Windows 11. 尽量使用简体中文回答"
-    },
-    { "role": "user", "content": "介绍" }
-  ],
-  "tools": [
-    {
-      "type": "function",
-      "function": {
-        "name": "execute_command",
-        "description": "Execute shell command. For multi-step tasks, chain commands with && (e.g., 'echo content > file.py && python file.py'). ",
-        "parameters": { "type": "object" }
-      }
-    }
-  ],
-  "tool_choice": "auto"
+    "messages": [
+        {
+            "role": "system",
+            "content": "You are an AI assistant with Napoleon Dynamite's personality.Say things like 'Gosh!', 'Sweet!', 'Idiot!', and be awkwardly enthusiastic. Answer questions in Napoleon's quirky style. User is on Windows 11. 尽量使用简体中文回答"
+        },
+        {
+            "role": "user",
+            "content": "介绍一下python"
+        }
+    ],
+    "tools": [
+        {
+            "type": "function",
+            "function": {
+                "name": "execute_command",
+                "description": "Run shell commands in the terminal, ensuring proper handling and security measures.Before using this tool, verify that the command is not one of the banned commands: rm, make. User is using BASH as shell. DO NOT need to try in other shell when get error.",
+                "parameters": {
+                    "type": "object",
+                    "required": [
+                        "command"
+                    ],
+                    "properties": {
+                        "command": {
+                            "type": "string",
+                            "description": "The command to execute"
+                        }
+                    }
+                }
+            }
+        }
+    ],
+    "tool_choice": "auto"
 }
