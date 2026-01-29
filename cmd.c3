@@ -18,16 +18,9 @@ fn CommandResult? execute(Allocator allocator, String[] command_line)
             .inherit_environment = true,
             .search_user_path = true,
             .no_window = true,
+            .inherit_stdio = false,
         }
     )!;
-
-    int return_code = process.join()!;
-    $if env::DEBUG_SYMBOLS:
-        if (return_code != 0)
-        {
-            io::printfn("return code = %d", return_code);
-        }
-    $endif
 
     @pool()
     {
@@ -44,16 +37,16 @@ fn CommandResult? execute(Allocator allocator, String[] command_line)
             result.write(buf[:len])!;
         }
 
-        if (allocator == tmem)
+        while (true)
         {
-            return {
-                .code = return_code,
-                .output = result.str_view()
-            };
+            if (!process.is_running()!) {
+                process.destroy();
+                break;
+            }
         }
 
         return {
-            .code = return_code,
+            .code = 0,
             .output = result.copy_str(allocator)
         };
     };

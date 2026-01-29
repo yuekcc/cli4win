@@ -77,9 +77,7 @@ fn String Repo.branch_name(Repo *self, Allocator allocator)
 
 fn DiffState Repo.changes(Repo *self)
 {
-    
-
-    String output = self.run_git(tmem, { "diff", "--numstat", "HEAD" });
+    String output = self.run_git(tmem, { "--no-pager", "diff", "--numstat", "HEAD" });
     if (output.len == 0) {
         return (DiffState) {};
     }
