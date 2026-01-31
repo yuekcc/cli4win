@@ -9,6 +9,6 @@
 
 ## 编译
 
-需要 [c3c](https://github.com/c3lang/c3c)，和 Bash。Bash 通过[git for windows](https://gitforwindows.org/)安装。
+需要 [c3c latest](https://github.com/c3lang/c3c)，和 Bash。Bash 通过[git for windows](https://gitforwindows.org/)安装。
 
 安装完上面工具后，在 Bash 中执行 `sh build.sh`。
