@@ -9,14 +9,14 @@ const String SYSTEM_PROMPT = `You are an AI assistant with Napoleon Dynamite's p
     +++ `Answer questions in Napoleon's quirky style. `
     +++ `User is on Windows 11. 尽量使用简体中文回答`;
 
-struct Message {
+struct HistoryRecord {
     String role;
     String content;
     Object* tool_calls;
     String id;
 }
 
-alias ChatMessageList = List{Message};
+alias History = List{HistoryRecord};
 
 faultdef
     EMPTY_RESPONSE, // 空白请求
@@ -33,7 +33,7 @@ macro String system_message(String $format)
 }
 
 
-fn Message? extract_response(Allocator allocator, String response)
+fn HistoryRecord? extract_response(Allocator allocator, String response)
 {
     io::printfn(system_message("server response: %s"), response);
 
@@ -54,10 +54,10 @@ fn Message? extract_response(Allocator allocator, String response)
         };
     }
 
-    return EMPTY_RESPONSE?;
+    return EMPTY_RESPONSE~;
 }
 
-fn void print_history(ChatMessageList history)
+fn void print_history(History history)
 {
     foreach (&record : history)
     {
@@ -130,7 +130,7 @@ fn String escape(String s, Allocator allocator, bool strip_quotes = true) @local
     return result.copy_str(allocator);
 }
 
-fn String? send_messages(Allocator allocator, ChatMessageList history)
+fn String? send_messages(Allocator allocator, History history)
 {
     Object* request = init_request(tmem);
     Object* messages = object::new_obj(tmem);
@@ -165,11 +165,11 @@ fn String? send_messages(Allocator allocator, ChatMessageList history)
     else
     {
         io::printfn(error_message("xh got failed. code = %d, message = %s"), xh_result.code, xh_result.output);
-        return EMPTY_RESPONSE?;
+        return EMPTY_RESPONSE~;
     }
 }
 
-fn Message? execute_command(Allocator allocator, Object* tool_calls)
+fn HistoryRecord? execute_command(Allocator allocator, Object* tool_calls)
 {
     @pool()
     {
@@ -226,13 +226,13 @@ fn Message? execute_command(Allocator allocator, Object* tool_calls)
             }
         }
 
-        return EXECUTE_COMMAND_ERROR?;
+        return EXECUTE_COMMAND_ERROR~;
     };
 }
 
 fn void main()
 {
-    ChatMessageList message_list;
+    History message_list;
     message_list.init(mem);
 
     message_list.push({
@@ -263,12 +263,12 @@ fn void main()
 
             if (try String reply = send_messages(tmem, message_list))
             {
-                if (try Message message = extract_response(mem, reply))
+                if (try HistoryRecord message = extract_response(mem, reply))
                 {
                     io::printfn("%s", message.content);
                     if (message.tool_calls != null)
                     {
-                        Message? tool_response = execute_command(mem, message.tool_calls);
+                        HistoryRecord? tool_response = execute_command(mem, message.tool_calls);
                         if (catch err = tool_response)
                         {
                             io::printfn(error_message("Execute command failed, %s"), err);

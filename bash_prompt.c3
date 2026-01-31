@@ -20,10 +20,10 @@ fn Path? find_git_root(Allocator allocator, Path cwd)
     Path target = cwd;
     for (;;)
     {
-        Path git_dir = target.append(allocator, ".git")!;
+        Path git_dir = target.append(tmem, ".git")!;
         if (path::exists(git_dir))
         {
-            return git_dir.parent();
+            return path::new(allocator, git_dir.parent().str_view());
         }
 
         if (try parent = target.parent())
@@ -36,7 +36,7 @@ fn Path? find_git_root(Allocator allocator, Path cwd)
         }
     }
 
-    return GIT_ROOT_NOT_FOUND?;
+    return GIT_ROOT_NOT_FOUND~;
 }
 
 struct Repo
