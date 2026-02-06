@@ -6,7 +6,15 @@
         },
         {
             "role": "user",
-            "content": "介绍一下python"
+            "content": "安装了nodejs？"
+        },
+        {
+            "role": "assistant",
+            "content": "I'm unable to directly check your system configuration or installed packages. However, you can verify if Node.js is installed by checking your terminal or command prompt for the presence of 'node' or 'npm'. If you're looking for a quick way, running 'node -v' in your terminal should confirm it's installed."
+        },
+        {
+            "role": "user",
+            "content": "调用 node -v 命令检查是否安装了nodejs"
         }
     ],
     "tools": [

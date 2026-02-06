@@ -195,9 +195,9 @@ fn HistoryRecord? execute_command(Allocator allocator, Object* tool_calls)
                 io::printfn(system_message("Execute command: %s"), command);
 
                 $if env::WIN32:
-                    String[] cmd = { "bash", "-ic", command };
+                    String[] cmd = { "sh", "-c", command };
                 $else
-                    String[] cmd = { "bash", "-ic", command };
+                    String[] cmd = { "sh", "-c", command };
                 $endif
 
                 CommandResult cmd_result = cmd::execute(tmem, cmd)!;
