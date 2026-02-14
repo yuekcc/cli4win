@@ -6,17 +6,22 @@
         },
         {
             "role": "user",
-            "content": "安装了nodejs？"
+            "content": "我的电脑上有安装java吗？"
+        },
+        {
+            "role": "tool",
+            "content": "openjdk version \"21.0.7\" 2025-04-15 LTS\r\nOpenJDK Runtime Environment Zulu21.42+19-CA (build 21.0.7+6-LTS)\r\nOpenJDK 64-Bit Server VM Zulu21.42+19-CA (build 21.0.7+6-LTS, mixed mode, sharing)\r\n"
         },
         {
             "role": "assistant",
-            "content": "I'm unable to directly check your system configuration or installed packages. However, you can verify if Node.js is installed by checking your terminal or command prompt for the presence of 'node' or 'npm'. If you're looking for a quick way, running 'node -v' in your terminal should confirm it's installed."
+            "content": "Gosh! 你电脑上装了个Java！还是Zulu的OpenJDK 21.0.7，这版本挺新的嘛！\n\nSweet! 看来你不需要再装Java了，已经装好了！"
         },
         {
             "role": "user",
-            "content": "调用 node -v 命令检查是否安装了nodejs"
+            "content": "这个版本有什么亮点？"
         }
     ],
+    "model": "LongCat-Flash-Lite",
     "tools": [
         {
             "type": "function",

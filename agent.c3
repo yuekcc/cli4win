@@ -50,7 +50,7 @@ fn HistoryRecord? extract_response(Allocator allocator, String response)
         return {
             .role = role.copy(allocator),
             .content = content.copy(allocator),
-            .tool_calls = tool_calls ?? null,
+            .tool_calls = null,
         };
     }
 
@@ -66,7 +66,7 @@ fn void print_history(History history)
     }
 }
 
-fn Object* init_request(Allocator allocator)
+fn Object* init_request(Allocator allocator, String modelId)
 {
     Object* command_decl_obj = object::new_obj(allocator);
     command_decl_obj.set("type", "string");
@@ -96,14 +96,15 @@ fn Object* init_request(Allocator allocator)
     obj.set("tool_choice", "auto");
     obj.set_object("tools", tools);
 
+    obj.set("model", modelId);
+
     io::printfn("%s", obj);
     return obj;
 }
 
 fn String escape(String s, Allocator allocator, bool strip_quotes = true) @local
 {
-    // Conservative allocation: most strings need minimal escaping
-    usz initial_capacity = s.len + s.len / 5 + 2; // ~1.2x + quotes
+    usz initial_capacity = s.len + s.len / 5 + 2;
     DString result = dstring::new_with_capacity(allocator, initial_capacity);
 
     if (!strip_quotes) result.append_char('"');
@@ -134,14 +135,14 @@ fn String? send_messages(Allocator allocator, History history)
 {
     @pool()
     {
-        Object* request = init_request(tmem);
+        Object* request = init_request(tmem, "LongCat-Flash-Lite");
         Object* messages = object::new_obj(tmem);
 
         foreach (i, &record : history)
         {
             Object* message = object::new_obj(tmem);
             message.set("role", record.role);
-            message.set("content", escape(record.content, tmem)); // HACK
+            message.set("content", escape(record.content, tmem));
             messages.push(message);
         }
 
@@ -152,9 +153,10 @@ fn String? send_messages(Allocator allocator, History history)
         String[] final_cmd = {
             "xh",
             "post",
-            "http://127.0.0.1:8001/v1/chat/completions",
+            "https://api.longcat.chat/openai/v1/chat/completions",
             "--stream",
             "--ignore-stdin",
+            "Authorization:@apikey.txt",
             string::format(tmem, "@%s", filename),
         };
 
@@ -182,9 +184,6 @@ fn HistoryRecord? execute_command(Allocator allocator, Object* tool_calls)
         if (function_call)
         {
             Object* function_call_details = function_call.get("function")!;
-            // io::printfn("function_call_details decl: %s", function_call_details);
-
-            // TODO 异常处理
 
             String function_name = function_call_details.get_string("name")!;
             String arguments = function_call_details.get_string("arguments")!;
@@ -264,37 +263,71 @@ fn void main()
                 }
             }
 
+            Object* tool_calls_for_execute = null;
+            HistoryRecord assistant_message;
+            bool has_message = false;
+
             if (try String reply = send_messages(tmem, message_list))
             {
-                if (try HistoryRecord message = extract_response(mem, reply))
+                io::printfn(system_message("Reply: %s\n"), reply);
+
+                if (try Object* res = json::parse_string(tmem, reply))
                 {
-                    io::printfn("%s", message.content);
-                    if (message.tool_calls != null)
+                    if (try Object* choices = res.get("choices"))
                     {
-                        HistoryRecord? tool_response = execute_command(mem, message.tool_calls);
-                        if (catch err = tool_response)
+                        Object* last_choice = choices.get_at(0);
+                        
+                        if (try message_obj = last_choice.get("message"))
                         {
-                            io::printfn(error_message("Execute command failed, %s"), err);
-                            message_list.push({
-                                .role= "tool",
-                                .content = string::format(mem, "execute command with cmd /c failed, for %s", err)
-                            });
-                            calling_tools = true;
+                            String role = message_obj.get_string("role") ?? "assistant";
+                            String content = message_obj.get_string("content") ?? "";
+                            Object*? tool_calls = message_obj.get("tool_calls");
+
+                            assistant_message = {
+                                .role = role.copy(mem),
+                                .content = content.copy(mem),
+                                .tool_calls = null,
+                            };
+                            has_message = true;
+                            if (try Object* tc = tool_calls)
+                            {
+                                tool_calls_for_execute = tc;
+                            }
+
+                            io::printfn("%s", content);
                         }
-                        else
-                        {
-                            message_list.push(tool_response);
-                            calling_tools = true;
-                        }
+                    }
+                }
+            }
+
+            if (has_message)
+            {
+                if (tool_calls_for_execute != null)
+                {
+                    HistoryRecord? tool_response = execute_command(mem, tool_calls_for_execute);
+                    if (catch err = tool_response)
+                    {
+                        io::printfn(error_message("Execute command failed, %s"), err);
+                        message_list.push({
+                            .role= "tool",
+                            .content = string::format(mem, "execute command with cmd /c failed, for %s", err)
+                        });
+                        calling_tools = true;
                     }
                     else
                     {
-                        calling_tools = false;
-                        message_list.push(message);
+                        message_list.push(tool_response);
+                        calling_tools = true;
                     }
+                }
+                else
+                {
+                    calling_tools = false;
+                    message_list.push(assistant_message);
                 }
 
                 io::print("\n");
+                retry_on_error = 0;
                 continue LOOP;
             }
 

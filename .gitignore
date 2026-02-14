@@ -7,3 +7,5 @@ obj
 .vscode
 .idea
 dist
+
+apikey.txt
