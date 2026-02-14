@@ -132,41 +132,44 @@ fn String escape(String s, Allocator allocator, bool strip_quotes = true) @local
 
 fn String? send_messages(Allocator allocator, History history)
 {
-    Object* request = init_request(tmem);
-    Object* messages = object::new_obj(tmem);
-
-    foreach (i, &record : history)
+    @pool()
     {
-        Object* message = object::new_obj(tmem);
-        message.set("role", record.role);
-        message.set("content", escape(record.content, tmem)); // HACK
-        messages.push(message);
-    }
+        Object* request = init_request(tmem);
+        Object* messages = object::new_obj(tmem);
 
-    request.set_object("messages", messages);
-    String filename = "req.json";
-    file::save(filename, string::format(tmem, "%s", request))!;
+        foreach (i, &record : history)
+        {
+            Object* message = object::new_obj(tmem);
+            message.set("role", record.role);
+            message.set("content", escape(record.content, tmem)); // HACK
+            messages.push(message);
+        }
 
-    String[] final_cmd = {
-        "xh",
-        "post",
-        "http://127.0.0.1:8001/v1/chat/completions",
-        "--stream",
-        "--ignore-stdin",
-        string::format(tmem, "@%s", filename),
+        request.set_object("messages", messages);
+        String filename = "req.json";
+        file::save(filename, string::format(tmem, "%s", request))!;
+
+        String[] final_cmd = {
+            "xh",
+            "post",
+            "http://127.0.0.1:8001/v1/chat/completions",
+            "--stream",
+            "--ignore-stdin",
+            string::format(tmem, "@%s", filename),
+        };
+
+        io::printn(system_message("waiting for reply ..."));
+        CommandResult xh_result = cmd::execute(tmem, final_cmd)!;
+        if (xh_result.code == 0)
+        {
+            return xh_result.output.copy(allocator);
+        }
+        else
+        {
+            io::printfn(error_message("xh got failed. code = %d, message = %s"), xh_result.code, xh_result.output);
+            return EMPTY_RESPONSE~;
+        }
     };
-
-    io::printn(system_message("waiting for reply ..."));
-    CommandResult xh_result = cmd::execute(tmem, final_cmd)!;
-    if (xh_result.code == 0)
-    {
-        return xh_result.output.copy(allocator);
-    }
-    else
-    {
-        io::printfn(error_message("xh got failed. code = %d, message = %s"), xh_result.code, xh_result.output);
-        return EMPTY_RESPONSE~;
-    }
 }
 
 fn HistoryRecord? execute_command(Allocator allocator, Object* tool_calls)
@@ -246,7 +249,7 @@ fn void main()
     while LOOP: (true)
     {    
         @pool()
-        {
+        {            
             if (!calling_tools)
             {
                 io::print(Ansi.BOLD +++ Ansi.GREEN +++ ">>> ");
