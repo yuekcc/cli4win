@@ -105,7 +105,7 @@ fn Object* init_request(Allocator allocator, String modelId)
 fn String escape(String s, Allocator allocator, bool strip_quotes = true) @local
 {
     usz initial_capacity = s.len + s.len / 5 + 2;
-    DString result = dstring::new_with_capacity(allocator, initial_capacity);
+    DString result = dstring::new_with_capacity(tmem, initial_capacity);
 
     if (!strip_quotes) result.append_char('"');
 
@@ -128,7 +128,7 @@ fn String escape(String s, Allocator allocator, bool strip_quotes = true) @local
     }
 
     if (!strip_quotes) result.append_char('"');
-    return result.copy_str(allocator);
+    return result.str_view().copy(allocator);
 }
 
 fn String? send_messages(Allocator allocator, History history)
