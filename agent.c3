@@ -84,17 +84,17 @@ fn Object* init_request(Allocator allocator, String modelId)
     Object* function_obj = object::new_obj(allocator);
     function_obj.set("name", "execute_command");
     function_obj.set("description", "Run shell commands in the terminal, ensuring proper handling and security measures.Before using this tool, verify that the command is not one of the banned commands: rm, make. User is using BASH as shell. DO NOT need to try in other shell when get error.");
-    function_obj.set_object("parameters", parameters_obj);
+    function_obj.set("parameters", parameters_obj);
 
     Object* tools = object::new_obj(allocator);
     Object* tool = object::new_obj(allocator);
     tool.set("type", "function");
-    tool.set_object("function", function_obj);
+    tool.set("function", function_obj);
     tools.push(tool);
 
     Object* obj = object::new_obj(allocator);
     obj.set("tool_choice", "auto");
-    obj.set_object("tools", tools);
+    obj.set("tools", tools);
 
     obj.set("model", modelId);
 
@@ -135,7 +135,7 @@ fn String? send_messages(Allocator allocator, History history)
 {
     @pool()
     {
-        Object* request = init_request(tmem, "LongCat-Flash-Lite");
+        Object* request = init_request(tmem, "LongCat-Flash-Chat");
         Object* messages = object::new_obj(tmem);
 
         foreach (i, &record : history)
@@ -146,7 +146,7 @@ fn String? send_messages(Allocator allocator, History history)
             messages.push(message);
         }
 
-        request.set_object("messages", messages);
+        request.set("messages", messages);
         String filename = "req.json";
         file::save(filename, string::format(tmem, "%s", request))!;
 
