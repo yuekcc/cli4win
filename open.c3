@@ -10,34 +10,30 @@ fn int open_uri(String cwd, String uri) @inline
 
 fn int open_file(String cwd, String file_path, int argc, ZString* argv) @inline
 {
-    @pool()
+    Path? target = path::new(tmem, file_path);
+    if (catch reason = target)
     {
-        Path? target = path::new(tmem, file_path);
-        if (catch reason = target)
+        io::eprintfn("Error, invalid path. Input = %s", file_path);
+        return 1;
+    }
+
+    if (!path::exists(target))
+    {
+        io::eprintfn("Error, file not found. File path = %s", target);
+        return 1;
+    }
+
+    DString parameter = dstring::new(tmem);
+    if (argc > 2)
+    {
+        for (usz i = 2; argv[i] != null; i++)
         {
-            io::eprintfn("Error, invalid path. Input = %s", file_path);
-            return 1;
+            parameter.append(argv[i].str_view());
+            parameter.append(" ");
         }
+    }
 
-        if (!path::exists(target))
-        {        
-            io::eprintfn("Error, file not found. File path = %s", target);
-            return 1;
-        }
-
-        DString parameter = dstring::new(tmem);
-        if (argc > 2)
-        {
-            for (usz i = 2; argv[i] != null; i++)
-            {
-                parameter.append(argv[i].str_view());
-                parameter.append(" ");
-            }
-        }
-
-
-        return win::shell_exec(cwd, target.str_view(), parameter.str_view()) ? 0 : 1;
-    };
+    return win::shell_exec(cwd, target.str_view(), parameter.str_view()) ? 0 : 1;
 }
 
 
@@ -60,4 +56,3 @@ fn int main(int argc, ZString* argv)
 
     return open_file(cwd.str_view(), target_file, argc, argv);
 }
-

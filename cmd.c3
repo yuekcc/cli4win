@@ -9,17 +9,11 @@ struct CommandResult
     String output;
 }
 
-fn CommandResult? execute(Allocator allocator, String[] command_line) 
+fn CommandResult? execute(Allocator allocator, String[] command_line)
 {
-    process::SubProcess process = process::create(
+    Process process = process::spawn(
         command_line,
-        {
-            .combined_stdout_stderr = true,
-            .inherit_environment = true,
-            .search_user_path = true,
-            .no_window = true,
-            .inherit_stdio = false,
-        }
+        STDERR_TO_STDOUT & INHERIT_ENV & NO_WINDOW
     )!;
 
     @pool()
