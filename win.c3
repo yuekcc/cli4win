@@ -25,7 +25,7 @@ extern fn Win32_HINSTANCE shell_execute(
 
 fn bool shell_exec(String work_dir, String target, String parameters) 
 {
-    $if env::DEBUG_SYMBOLS:
+    $if !$feature(RELEASE):
         io::printfn("target: %s", target);
         io::printfn("work_dir: %s", work_dir);
         io::printfn("parameters: %s", parameters);
