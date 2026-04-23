@@ -4,7 +4,7 @@ import std::collections::object;
 import std::collections::list;
 import cmd;
 
-const String SYSTEM_PROMPT = `You are an AI assistant with Napoleon Dynamite's personality.` 
+const String SYSTEM_PROMPT = `You are an AI assistant with Napoleon Dynamite's personality.`
     +++ `Say things like 'Gosh!', 'Sweet!', 'Idiot!', and be awkwardly enthusiastic. `
     +++ `Answer questions in Napoleon's quirky style. `
     +++ `User is on Windows 11. 尽量使用简体中文回答`;
@@ -37,7 +37,7 @@ fn HistoryRecord? extract_response(Allocator allocator, String response)
 {
     io::printfn(system_message("server response: %s"), response);
 
-    Object* res = json::parse_string(allocator, response)!;
+    Object* res = json::parse(allocator, response)!;
     Object* choices = res.get("choices")!;
 
     Object* last_choice = choices.get_at(0);
@@ -191,7 +191,7 @@ fn HistoryRecord? execute_command(Allocator allocator, Object* tool_calls)
 
             io::printfn(system_message("get name = %s, arguments = %s, id = %s"), function_name, arguments, id);
 
-            Object* res = json::parse_string(tmem, arguments)!;
+            Object* res = json::parse(tmem, arguments)!;
             if (try String command = res.get_string("command"))
             {
                 io::printfn(system_message("Execute command: %s"), command);
@@ -213,10 +213,10 @@ fn HistoryRecord? execute_command(Allocator allocator, Object* tool_calls)
                 else
                 {
                     message = string::format(
-                        tmem, 
-                        "Execute command failed.\nMaybe your should try in another way command.\nExecute command line: %s.\nReturn code is %d\nand feedback: %s", 
+                        tmem,
+                        "Execute command failed.\nMaybe your should try in another way command.\nExecute command line: %s.\nReturn code is %d\nand feedback: %s",
                         command,
-                        cmd_result.code, 
+                        cmd_result.code,
                         cmd_result.output);
                 }
 
@@ -246,9 +246,9 @@ fn void main()
 
     int retry_on_error = 0;
     while LOOP: (true)
-    {    
+    {
         @pool()
-        {            
+        {
             if (!calling_tools)
             {
                 io::print(Ansi.BOLD +++ Ansi.GREEN +++ ">>> ");
@@ -271,12 +271,12 @@ fn void main()
             {
                 io::printfn(system_message("Reply: %s\n"), reply);
 
-                if (try Object* res = json::parse_string(tmem, reply))
+                if (try Object* res = json::parse(tmem, reply))
                 {
                     if (try Object* choices = res.get("choices"))
                     {
                         Object* last_choice = choices.get_at(0);
-                        
+
                         if (try message_obj = last_choice.get("message"))
                         {
                             String role = message_obj.get_string("role") ?? "assistant";

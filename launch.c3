@@ -11,17 +11,15 @@ fn int real_main(int argc, String arg0)
 {
     Path exe_name = path::new(mem, arg0)!!;
     Path full_path = exe_name.absolute(mem)!!;
-    String install_dir = full_path.dirname();
+    Path install_path = full_path.parent()!!;
 
-    String config_path = path::normalize(string::tformat("%s/%s.json", install_dir, exe_name.basename()))!!;
-    // io::printfn("%s", config_path);
+    Path config_path = install_path.tappend(string::tformat("%s.json", exe_name.basename()))!!;
+    String context = (String)file::load_path(tmem, config_path)!!;
 
-    File config_file = file::open(config_path, "r")!!;
-    defer config_file.close()!!;
 
     Path cwd = path::cwd(mem)!!;
 
-    Object* config = json::parse(mem, &config_file)!!;
+    Object* config = json::parse(mem, context)!!;
     String command = path::normalize(config.get_string("command")!!)!!;
     bool change_dir = config.get_bool("changeDir")!!;
 
@@ -43,7 +41,7 @@ fn int real_main(int argc, String arg0)
     // io::printfn("flags: %s", flags.str_view());
 
      win::shell_exec(
-        change_dir ? install_dir : cwd.str_view(),
+        change_dir ? install_path.str_view() : cwd.str_view(),
         command,
         flags.str_view()
     );
