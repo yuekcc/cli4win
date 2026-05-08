@@ -13,7 +13,7 @@ const int JWRITE_MISSING_VALUE = 8; /* object missing value */
 
 const int JWRITE_STACK_DEPTH = 32;
 
-enum JwNodeType : const
+constdef JwNodeType
 {
     JW_OBJECT = 1, 
     JW_ARRAY, 
