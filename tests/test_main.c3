@@ -13,11 +13,11 @@ import std::io;
 fn void main() @export("_main") => unreachable();
 fn int _main(int argc, ZString* argv, ZString* environ) @export("main")
 {
-  for (usz i  = 0; environ[i] != null; i++)
-  {
-    io::printfn("%s", environ[i]);
-  }
+	for (usz i = 0; environ[i] != null; i++)
+	{
+		io::printfn("%s", environ[i]);
+	}
 
 
-  return 0;
+	return 0;
 }
