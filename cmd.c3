@@ -5,49 +5,38 @@ import std::io;
 
 struct CommandResult
 {
-    int code;
-    String output;
+	int code;
+	String output;
 }
 
 fn CommandResult? execute(Allocator allocator, String[] command_line)
 {
-    Process process = process::spawn(
-        command_line,
-        STDERR_TO_STDOUT | INHERIT_ENV | NO_WINDOW
-    )!;
+	Process process = process::spawn(command_line, STDERR_TO_STDOUT | INHERIT_ENV | NO_WINDOW)!;
+	defer (void)process.destroy();
 
-    @pool()
-    {
-        DString result = dstring::new(tmem);
-        while(true)
-        {
-            char[512] buf @noinit;
-            usz len = process.read_stdout(&buf, buf.len)!;
-            if (len == 0)
-            {
-                break;
-            }
+	int exit_code = process.join()!;
 
-            result.write(buf[:len])!;
-        }
+	@pool()
+	{
+		DString result = dstring::new(tmem);
+		while (true)
+		{
+			char[512] buf @noinit;
+			sz len = process.read_stdout(&buf, buf.len)!;
+			if (len == 0)
+			{
+				break;
+			}
 
-        while (true)
-        {
-            if (!process.is_running()!) {
-                process.destroy();
-                break;
-            }
-        }
+			result.write(buf[:len])!;
+		}
 
-        return {
-            .code = 0,
-            .output = result.copy_str(allocator)
-        };
-    };
+		return { .code = exit_code, .output = result.copy_str(allocator) };
+	};
 }
 
 fn String? execute_to_string(Allocator allocator, String[] command_line)
 {
-    CommandResult cmd_result = execute(allocator, command_line)!;
-    return cmd_result.output;
+	CommandResult cmd_result = execute(allocator, command_line)!;
+	return cmd_result.output;
 }
