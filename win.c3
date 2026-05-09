@@ -5,7 +5,7 @@ import std::io;
 import std::io::path;
 import std::os::win32;
 
-macro cast_int(Win32_HINSTANCE instance)
+macro @cast_int(Win32_HINSTANCE instance)
 {
 	return (int)(iptr)instance;
 }
@@ -46,11 +46,11 @@ fn bool shell_exec(String work_dir, String target, String parameters)
 		SW_NORMAL, // nShowCmd
 	);
 
-	if (cast_int(result) > 32)
+	if (@cast_int(result) > 32)
 	{
 		return true;
 	}
 
-	io::eprintfn("Failed to open file (%d)", cast_int(result));
+	io::eprintfn("Failed to open file (%d)", @cast_int(result));
 	return false;
 }
