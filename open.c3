@@ -33,7 +33,7 @@ fn int open_file(String cwd, String file_path, int argc, ZString* argv) @inline
 		}
 	}
 
-	return win::shell_exec(cwd, target.str_view(), parameter.str_view()) ? 0 : 1;
+	return win::shell_exec(cwd, target, parameter.str_view()) ? 0 : 1;
 }
 
 
@@ -51,8 +51,8 @@ fn int main(int argc, ZString* argv)
 	// 直接打开 URL
 	if (target_file.starts_with("http:") || target_file.starts_with("https:") || target_file.starts_with("mailto:"))
 	{
-		return open_uri(cwd.str_view(), target_file);
+		return open_uri(cwd, target_file);
 	}
 
-	return open_file(cwd.str_view(), target_file, argc, argv);
+	return open_file(cwd, target_file, argc, argv);
 }

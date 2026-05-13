@@ -37,7 +37,7 @@ fn bool? Repo.try_init(&self, Allocator allocator, Path cwd)
 			Path git_dir = target.append(tmem, ".git")!;
 			if (path::exists(git_dir))
 			{
-				self.root = path::new(allocator, git_dir.parent().str_view())!;
+				self.root = path::new(allocator, git_dir.parent())!;
 				return true;
 			}
 
@@ -58,7 +58,7 @@ fn bool? Repo.try_init(&self, Allocator allocator, Path cwd)
 
 fn String Repo.run_git(Repo* self, Allocator allocator, String[] command_line)
 {
-	String[] final_command_line = array::concat(tmem, (String[]) { "git", "-C", self.root.str_view() }, command_line);
+	String[] final_command_line = array::concat(tmem, (String[]) { "git", "-C", self.root }, command_line);
 	String? result = cmd::execute_to_string(tmem, final_command_line);
 	if (try result)
 	{
@@ -72,7 +72,7 @@ fn String Repo.branch_name(Repo* self, Allocator allocator)
 {
 	if (try head_file = self.root.tappend(".git/HEAD"))
 	{
-		String content = (String)file::load_temp(head_file.str_view()) ?? "";
+		String content = (String)file::load_temp(head_file) ?? "";
 		return content.treplace("ref: refs/heads/", "").trim().copy(allocator);
 	}
 	else
@@ -206,7 +206,7 @@ fn String short_view(Allocator allocator, String work_dir, bool use_short_name)
 
 fn void print_cwd(DString* out, Path cwd, bool use_short_name)
 {
-	String cwd_str = cwd.str_view().replace(tmem, "\\", "/");
+	String cwd_str = cwd.replace(tmem, "\\", "/");
 	out.appendf(style(Ansi.BLUE +++ Ansi.BOLD, "%s"), short_view(tmem, cwd_str, use_short_name));
 }
 

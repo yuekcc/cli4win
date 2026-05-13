@@ -29,14 +29,14 @@ fn int real_main(int argc, String arg0)
 		String flag = config.get("args").get_string_at(i)!!;
 		if (change_dir && flag == "$CWD")
 		{
-			flag = cwd.str_view();
+			flag = cwd;
 		}
 
 		flags.append(flag);
 		flags.append(" ");
 	}
 
-	win::shell_exec(change_dir ? install_path.str_view() : cwd.str_view(), command, flags.str_view());
+	win::shell_exec(change_dir ? install_path : cwd, command, flags.str_view());
 	return 0;
 }
 
