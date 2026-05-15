@@ -149,13 +149,12 @@ fn void print_env_xxx(DString* out, ZString* environ)
 
 fn void print_git(DString* out, Path cwd)
 {
-	Repo repo;
+	Repo repo = {};
 	bool ready = repo.try_init(tmem, cwd) ?? false;
 	if (!ready)
 	{
 		return;
 	}
-	defer repo.free();
 
 	out.appendf(" @ " +++ style(Ansi.YELLOW, "%s"), repo.branch_name(tmem));
 
@@ -285,14 +284,14 @@ fn int _main(int argc, ZString* argv, ZString* environ) @export("main")
 
 	if (flag.show_init)
 	{
-		Path exe_name = path::new(mem, flag.exe_name)!!;
+		Path exe_name = path::new(tmem, flag.exe_name)!!;
 		io::printf("\nPROMPT_COMMAND=\"%s --short --venv\"; export PROMPT_COMMAND; PS1=\"\\$ \";", exe_name.basename());
 		return 0;
 	}
 
-	if (try cwd = path::cwd(mem))
+	if (try cwd = path::cwd(tmem))
 	{
-		DString buf = dstring::new(mem);
+		DString buf = dstring::new(tmem);
 		buf.append(NEW_LINE);
 
 		print_cwd(&buf, cwd, flag.use_short_name);
