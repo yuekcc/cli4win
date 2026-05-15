@@ -25,10 +25,13 @@ struct DiffState
 struct Repo
 {
 	Path root;
+	Allocator allocator;
 }
 
 fn bool? Repo.try_init(&self, Allocator allocator, Path cwd)
 {
+	self.allocator = allocator;
+
 	@pool()
 	{
 		Path target = cwd;
@@ -37,7 +40,7 @@ fn bool? Repo.try_init(&self, Allocator allocator, Path cwd)
 			Path git_dir = target.append(tmem, ".git")!;
 			if (path::exists(git_dir))
 			{
-				self.root = path::new(allocator, git_dir.parent())!;
+				self.root = path::new(self.allocator, git_dir.parent())!;
 				return true;
 			}
 
@@ -53,6 +56,11 @@ fn bool? Repo.try_init(&self, Allocator allocator, Path cwd)
 	};
 
 	return false;
+}
+
+fn void Repo.free(&self)
+{
+	alloc::free(self.allocator, self.root);
 }
 
 
@@ -147,6 +155,7 @@ fn void print_git(DString* out, Path cwd)
 	{
 		return;
 	}
+	defer repo.free();
 
 	out.appendf(" @ " +++ style(Ansi.YELLOW, "%s"), repo.branch_name(tmem));
 
