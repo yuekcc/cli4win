@@ -89,9 +89,8 @@ fn String Repo.branch_name(Repo* self, Allocator allocator)
 	}
 }
 
-fn DiffState Repo.changes(Repo* self)
+fn DiffState count_changed_lines(String output)
 {
-	String output = self.run_git(tmem, { "--no-pager", "diff", "--numstat", "HEAD" });
 	if (output.len == 0)
 	{
 		return (DiffState) { };
@@ -131,6 +130,97 @@ fn DiffState Repo.changes(Repo* self)
 	return { .files_changed = files_changed, .insertions = insertions, .deletions = deletions, };
 }
 
+struct FileDiffState
+{
+	usz staged;
+	usz unstaged;
+	usz untracked;
+}
+
+fn FileDiffState count_changed_files(String output)
+{
+	FileDiffState fds;
+
+	if (output.len == 0)
+	{
+		return fds;
+	}
+
+	String[] lines = output.split(tmem, "\n");
+	for (usz i = 0; i < lines.len; i++)
+	{
+		char x = lines[i][0];
+		char y = lines[i][1];
+
+		if (x != ' ' && x != '?')
+		{
+			fds.staged += 1;
+		}
+		
+		if (x == '?' && y == '?')
+		{
+			fds.untracked += 1;
+		}
+		
+		if (y != ' ' && y != '?')
+		{
+			fds.unstaged += 1;
+		}
+	}
+
+	return fds;
+}
+
+fn FileDiffState Repo.file_changes(Repo* self)
+{
+	String output = self.run_git(tmem, { "status", "--porcelain" });
+	return count_changed_files(output);
+}
+
+fn DiffState Repo.changes(Repo* self)
+{
+	// git status --porcelain
+	String output = self.run_git(tmem, { "--no-pager", "diff", "--numstat", "HEAD" });
+	return count_changed_lines(output);
+	// if (output.len == 0)
+	// {
+	// 	return (DiffState) { };
+	// }
+
+	// usz files_changed;
+	// usz insertions;
+	// usz deletions;
+
+	// String[] lines = output.split(tmem, "\n");
+	// for (usz i = 0; i < lines.len; i++)
+	// {
+	// 	String[] tokens = lines[i].split(tmem, "\t");
+	// 	if (tokens.len > 2)
+	// 	{
+	// 		String added = tokens[0];
+	// 		String deleted = tokens[1];
+	// 		if (try num = added.to_uint())
+	// 		{
+	// 			insertions += num;
+	// 		}
+
+	// 		if (try num = deleted.to_uint())
+	// 		{
+	// 			deletions += num;
+	// 		}
+	// 	}
+
+	// 	files_changed += 1;
+	// }
+
+	// if (insertions == 0 && deletions == 0)
+	// {
+	// 	return (DiffState) { };
+	// }
+
+	// return { .files_changed = files_changed, .insertions = insertions, .deletions = deletions, };
+}
+
 fn void print_env_xxx(DString* out, ZString* environ)
 {
 	for (usz i = 0; environ[i] != null; i++)
@@ -158,12 +248,21 @@ fn void print_git(DString* out, Path cwd)
 
 	out.appendf(" @ " +++ style(Ansi.YELLOW, "%s"), repo.branch_name(tmem));
 
-	DiffState diff_state = repo.changes();
-	if (diff_state.files_changed > 0)
+	FileDiffState file_diff_state = repo.file_changes();
+	if (file_diff_state.staged > 0 || file_diff_state.unstaged > 0 || file_diff_state.untracked > 0)
 	{
 		out.append(style(Ansi.RED, "*"));
-		out.appendf(" +%d, -%d", diff_state.insertions, diff_state.deletions);
-	}
+		if (file_diff_state.staged > 0) out.appendf(" s.%d", file_diff_state.staged);
+		if (file_diff_state.unstaged > 0) out.appendf(" us.%d", file_diff_state.unstaged);
+		if (file_diff_state.untracked > 0) out.appendf(" ut.%d", file_diff_state.untracked);
+	} 
+
+	// DiffState diff_state = repo.changes();
+	// if (diff_state.files_changed > 0)
+	// {
+	// 	out.append(style(Ansi.RED, "*"));
+	// 	out.appendf(" +%d, -%d", diff_state.insertions, diff_state.deletions);
+	// }
 }
 
 fn String short_view(Allocator allocator, String work_dir, bool use_short_name)
