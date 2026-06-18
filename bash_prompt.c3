@@ -66,7 +66,10 @@ fn void Repo.free(&self)
 
 fn String Repo.run_git(Repo* self, Allocator allocator, String[] command_line)
 {
-	String[] final_command_line = array::concat(tmem, (String[]) { "git", "-C", self.root }, command_line);
+	String[] final_command_line = array::concat(
+		tmem, 
+		(String[]) { "git", "-C", self.root, "--no-optional-locks", "--no-pager" }, 
+		command_line);
 	String? result = cmd::execute_to_string(tmem, final_command_line);
 	if (try result)
 	{
@@ -173,13 +176,14 @@ fn FileDiffState count_changed_files(String output)
 
 fn FileDiffState Repo.file_changes(Repo* self)
 {
-	String output = self.run_git(tmem, { "--no-pager", "status", "--porcelain" });
+	// git --no-pager status --porcelain --no-optional-locks
+	String output = self.run_git(tmem, { "status", "--porcelain" });
 	return count_changed_files(output);
 }
 
 fn DiffState Repo.changes(Repo* self)
 {
-	String output = self.run_git(tmem, { "--no-pager", "diff", "--numstat", "HEAD" });
+	String output = self.run_git(tmem, { "diff", "--numstat", "HEAD" });
 	return count_changed_lines(output);
 }
 
