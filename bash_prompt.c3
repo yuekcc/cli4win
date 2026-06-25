@@ -15,13 +15,6 @@ faultdef
 	GIT_ROOT_NOT_FOUND, PARSE_DIFF_STATE_FAILED
 ;
 
-struct DiffState
-{
-	usz files_changed;
-	usz insertions;
-	usz deletions;
-}
-
 struct Repo
 {
 	Path root;
