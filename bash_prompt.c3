@@ -67,9 +67,10 @@ fn void Repo.free(&self)
 fn String Repo.run_git(Repo* self, Allocator allocator, String[] command_line)
 {
 	String[] final_command_line = array::concat(
-		tmem, 
-		(String[]) { "git", "-C", self.root, "--no-optional-locks", "--no-pager" }, 
-		command_line);
+		tmem,
+		(String[]) { "git", "-C", self.root, "--no-optional-locks", "--no-pager" },
+		command_line
+	);
 	String? result = cmd::execute_to_string(tmem, final_command_line);
 	if (try result)
 	{
@@ -92,99 +93,22 @@ fn String Repo.branch_name(Repo* self, Allocator allocator)
 	}
 }
 
-fn DiffState count_changed_lines(String output)
+fn sz count_changed_files(String output)
 {
 	if (output.len == 0)
 	{
-		return (DiffState) { };
-	}
-
-	usz files_changed;
-	usz insertions;
-	usz deletions;
-
-	String[] lines = output.split(tmem, "\n");
-	for (usz i = 0; i < lines.len; i++)
-	{
-		String[] tokens = lines[i].split(tmem, "\t");
-		if (tokens.len > 2)
-		{
-			String added = tokens[0];
-			String deleted = tokens[1];
-			if (try num = added.to_uint())
-			{
-				insertions += num;
-			}
-
-			if (try num = deleted.to_uint())
-			{
-				deletions += num;
-			}
-		}
-
-		files_changed += 1;
-	}
-
-	if (insertions == 0 && deletions == 0)
-	{
-		return (DiffState) { };
-	}
-
-	return { .files_changed = files_changed, .insertions = insertions, .deletions = deletions, };
-}
-
-struct FileDiffState
-{
-	usz staged;
-	usz unstaged;
-	usz untracked;
-}
-
-fn FileDiffState count_changed_files(String output)
-{
-	FileDiffState fds;
-
-	if (output.len == 0)
-	{
-		return fds;
+		return 0;
 	}
 
 	String[] lines = output.split(tmem, "\n");
-	for (usz i = 0; i < lines.len; i++)
-	{
-		char x = lines[i][0];
-		char y = lines[i][1];
-
-		if (x != ' ' && x != '?')
-		{
-			fds.staged += 1;
-		}
-		
-		if (x == '?' && y == '?')
-		{
-			fds.untracked += 1;
-		}
-		
-		if (y != ' ' && y != '?')
-		{
-			fds.unstaged += 1;
-		}
-	}
-
-	return fds;
+	return lines.len;
 }
 
-fn FileDiffState Repo.file_changes(Repo* self)
+fn sz Repo.file_changes(Repo* self)
 {
-	// git --no-pager status --porcelain --no-optional-locks
+	// git --no-pager --no-optional-locks status --porcelain
 	String output = self.run_git(tmem, { "status", "--porcelain" });
 	return count_changed_files(output);
-}
-
-fn DiffState Repo.changes(Repo* self)
-{
-	String output = self.run_git(tmem, { "diff", "--numstat", "HEAD" });
-	return count_changed_lines(output);
 }
 
 fn void print_env_xxx(DString* out, ZString* environ)
@@ -205,7 +129,7 @@ fn void print_env_xxx(DString* out, ZString* environ)
 
 fn void print_git(DString* out, Path cwd)
 {
-	Repo repo = {};
+	Repo repo  = { };
 	bool ready = repo.try_init(tmem, cwd) ?? false;
 	if (!ready)
 	{
@@ -214,14 +138,11 @@ fn void print_git(DString* out, Path cwd)
 
 	out.appendf(" @ " +++ style(Ansi.YELLOW, "%s"), repo.branch_name(tmem));
 
-	FileDiffState file_diff_state = repo.file_changes();
-	if (file_diff_state.staged > 0 || file_diff_state.unstaged > 0 || file_diff_state.untracked > 0)
+	sz changed_files = repo.file_changes();
+	if (changed_files > 0)
 	{
-		out.append(style(Ansi.RED, "*"));
-		if (file_diff_state.staged > 0) out.appendf(" s.%d", file_diff_state.staged);
-		if (file_diff_state.unstaged > 0) out.appendf(" us.%d", file_diff_state.unstaged);
-		if (file_diff_state.untracked > 0) out.appendf(" ut.%d", file_diff_state.untracked);
-	} 
+		out.appendf(style(Ansi.RED, " <%d>"), changed_files);
+	}
 }
 
 fn String short_view(Allocator allocator, String work_dir, bool use_short_name)
