@@ -45,14 +45,14 @@ fn int main(
 	Win32_HINSTANCE hPrevInstance,
 	String[] argv,
 	int nCmdShow
-) @winmain @if(env::WIN32)
+) @winmain @feat(WIN32)
 {
 	int argc = argv.len;
 	String arg0 = argv[0];
 	return real_main(argc, arg0);
 }
 
-fn void main() @if(!env::WIN32)
+fn void main() @feat(!WIN32)
 {
-	io::printfn("only work on windows");
+	io::eprintn("only work on windows");
 }
