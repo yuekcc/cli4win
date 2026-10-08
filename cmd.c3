@@ -11,7 +11,7 @@ struct CommandResult
 	String output;
 }
 
-fn void close_stdin(Process process)
+fn void close_stdin(Process* process)
 {
 	if (process.stdin_file)
 	{
@@ -33,7 +33,7 @@ fn CommandResult? execute(Allocator allocator, String[] command_line)
 	defer (void)process.destroy();
 
 	// 手工关闭 stdin，避免一直在等待输入
-	close_stdin(process);
+	close_stdin(&process);
 
 	@pool()
 	{

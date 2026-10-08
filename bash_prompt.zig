@@ -1,22 +1,24 @@
-//! bash_prompt - a PROMPT_COMMAND for bash on Windows.
+//! bash_prompt - a PROMPT_COMMAND for bash on Windows and Linux.
 //!
 //! Zig rewrite of bash_prompt.c3. Prints the current directory (optionally
-//! shortened), the git branch and the number of changed files. Output is
-//! kept byte-for-byte identical to the C3 original (see `toTextMode`).
+//! shortened), the git branch and the number of changed files, using
+//! platform-native line endings (CRLF on Windows, LF on Linux).
 //!
 //! Build with Zig 0.17.0 (no build.zig):
 //!   zig build-exe -OReleaseFast -femit-bin=dist/bash_prompt.exe bash_prompt.zig
 
 const std = @import("std");
+const builtin = @import("builtin");
 
 const Io = std.Io;
 const Allocator = std.mem.Allocator;
 
-/// The prompt is emitted with CRLF line endings. On Windows the original runs
-/// stdout in text mode, which turns every `\n` into `\r\n`; `stdoutWriteAllText`
-/// reproduces that so the output is byte-for-byte identical (including the
-/// resulting `\r\r\n` for the `\r\n` literals below).
-const NEW_LINE = "\r\n";
+// bash_prompt targets Windows and Linux only; `textMode` and the home-directory
+// lookup below branch on the target OS, so pin the supported set here.
+comptime {
+    std.debug.assert(builtin.target.os.tag == .windows or
+        builtin.target.os.tag == .linux);
+}
 
 const Ansi = struct {
     const reset = "\x1b[0m";
@@ -27,22 +29,69 @@ const Ansi = struct {
     const blue = "\x1b[34m";
 };
 
-// Note the plain `\n` line ends here: `toTextMode` turns them into CRLF on the
-// way out. `NEW_LINE` below is a literal `\r\n`, so it becomes `\r\r\n`.
-const HELP_TEXT =
+/// Turn a constant's LF line endings into the platform-native ones at compile
+/// time: `\n` becomes `\r\n` on Windows (the C3 original relies on the CRT's
+/// text mode, which does the same for `fwrite`), and is left alone on Linux
+/// (POSIX text and binary modes are identical). Because it runs in a `comptime`
+/// block, every constant below is stored already expanded; nothing is
+/// allocated or rewritten at runtime.
+fn textMode(comptime input: []const u8) []const u8 {
+    if (builtin.target.os.tag != .windows) return input;
+    comptime {
+        var buf: [input.len * 2]u8 = undefined;
+        var len: usize = 0;
+        for (input) |byte| {
+            if (byte == '\n') {
+                buf[len] = '\r';
+                buf[len + 1] = '\n';
+                len += 2;
+            } else {
+                buf[len] = byte;
+                len += 1;
+            }
+        }
+        const frozen: [len]u8 = buf[0..len].*;
+        return &frozen;
+    }
+}
+
+/// The prompt is separated from the shell by a native newline. Written as a
+/// single `\n` constant and widened by `textMode`, so Windows gets `\r\n` and
+/// Linux gets `\n` (no stray CR).
+const NEW_LINE = textMode("\n");
+
+const HELP_TEXT = textMode(
     "bash_prompt, a PROMPT_COMMAND\n" ++
-    "flags:\n" ++
-    "\t--short: enable short dir name\n" ++
-    "\t--venv: show BP_ENV_XXX for multi version programs\n" ++
-    "\t--init: print init script. To quick setup, run: bash_prompt --init >> ~/.bashrc\n" ++
-    "\t--help: print this message\n";
+        "flags:\n" ++
+        "\t--short: enable short dir name\n" ++
+        "\t--venv: show BP_ENV_XXX for multi version programs\n" ++
+        "\t--init: print init script. To quick setup, run: bash_prompt --init >> ~/.bashrc\n" ++
+        "\t--help: print this message\n",
+);
+
+/// The `--init` snippet, split around the executable name so it can be written
+/// without concatenation.
+const INIT_PREFIX = textMode("\nPROMPT_COMMAND=\"");
+const INIT_SUFFIX = textMode(" --short --venv\"; export PROMPT_COMMAND; PS1=\"\\$ \";");
 
 const Flags = struct {
     use_short_name: bool = false,
     show_env_xxx: bool = false,
     show_init: bool = false,
     show_help: bool = false,
-    exe_name: []const u8 = "",
+    exe_name: [:0]const u8 = "",
+};
+
+/// Flag name -> struct field. Two names may map to the same field (the
+/// `--help`/`-h` pair). `parseFlags` walks this with `inline for`, so the
+/// comparisons are unrolled at compile time and adding a flag is a one-line
+/// change here.
+const flag_specs = .{
+    .{ .name = "--short", .field = "use_short_name" },
+    .{ .name = "--venv", .field = "show_env_xxx" },
+    .{ .name = "--init", .field = "show_init" },
+    .{ .name = "--help", .field = "show_help" },
+    .{ .name = "-h", .field = "show_help" },
 };
 
 pub fn main(init: std.process.Init) u8 {
@@ -61,28 +110,10 @@ fn run(init: std.process.Init) !u8 {
     const allocator = init.arena.allocator();
 
     const args = try init.minimal.args.toSlice(allocator);
-
-    var flag = Flags{};
-    for (args, 0..) |arg, i| {
-        if (i == 0) {
-            flag.exe_name = arg;
-            continue;
-        }
-
-        if (std.mem.eql(u8, arg, "--short")) {
-            flag.use_short_name = true;
-        } else if (std.mem.eql(u8, arg, "--venv")) {
-            flag.show_env_xxx = true;
-        } else if (std.mem.eql(u8, arg, "--init")) {
-            flag.show_init = true;
-        } else if (std.mem.eql(u8, arg, "--help") or std.mem.eql(u8, arg, "-h")) {
-            flag.show_help = true;
-        }
-        // Unknown flags are silently ignored, matching the C3 original.
-    }
+    const flag = parseFlags(args);
 
     if (flag.show_help) {
-        try stdoutWriteAllText(io, HELP_TEXT);
+        try writeStdout(io, HELP_TEXT);
         return 0;
     }
 
@@ -90,22 +121,20 @@ fn run(init: std.process.Init) !u8 {
         // Print a snippet to append to ~/.bashrc. `exe_name` keeps the name the
         // tool was invoked with (e.g. "bash_prompt" or "bash_prompt.exe"), and
         // only its basename is used, matching the C3 original.
-        const basename = std.fs.path.basename(flag.exe_name);
-        const text = try allocator.print(
-            "\nPROMPT_COMMAND=\"{s} --short --venv\"; export PROMPT_COMMAND; PS1=\"\\$ \";",
-            .{basename},
-        );
-        try stdoutWriteAllText(io, text);
+        try writeStdout(io, INIT_PREFIX);
+        try writeStdout(io, std.fs.path.basename(flag.exe_name));
+        try writeStdout(io, INIT_SUFFIX);
         return 0;
     }
 
     // If the cwd cannot be obtained, print nothing (same as the original).
     const cwd = std.process.currentPathAlloc(io, allocator) catch return 0;
 
-    // The home directory is used to fold the path prefix into "~". The C3
-    // original reads USERPROFILE on Windows; PATH separators are normalized
-    // to '/' before the comparison.
-    const home = if (init.environ_map.get("USERPROFILE")) |raw|
+    // The home directory is used to fold the path prefix into "~". This mirrors
+    // the C3 `env::get_home_dir`: `USERPROFILE` on Windows, `HOME` elsewhere.
+    // PATH separators are normalized to '/' before the comparison.
+    const home_env = if (builtin.target.os.tag == .windows) "USERPROFILE" else "HOME";
+    const home = if (init.environ_map.get(home_env)) |raw|
         try replaceAll(allocator, raw, "\\", "/")
     else
         null;
@@ -121,8 +150,37 @@ fn run(init: std.process.Init) !u8 {
     }
 
     try out.appendSlice(allocator, NEW_LINE);
-    try stdoutWriteAllText(io, out.items);
+    try writeStdout(io, out.items);
     return 0;
+}
+
+/// Parse argv, mirroring the C3 original: `argv[0]` is stored as `exe_name`
+/// and unknown flags are silently ignored.
+fn parseFlags(args: []const [:0]const u8) Flags {
+    var flag = Flags{};
+    for (args, 0..) |arg, i| {
+        if (i == 0) {
+            flag.exe_name = arg;
+            continue;
+        }
+        inline for (flag_specs) |spec| {
+            if (std.mem.eql(u8, arg, spec.name)) @field(flag, spec.field) = true;
+        }
+    }
+    return flag;
+}
+
+/// Append `text` wrapped in `style` ... reset. `style` is comptime known so the
+/// prefix is a constant; only `text` is runtime data.
+fn appendStyled(
+    out: *std.ArrayList(u8),
+    allocator: Allocator,
+    comptime style: []const u8,
+    text: []const u8,
+) !void {
+    try out.appendSlice(allocator, style);
+    try out.appendSlice(allocator, text);
+    try out.appendSlice(allocator, Ansi.reset);
 }
 
 /// Print the cwd in blue + bold. Backslashes are normalized to '/' first.
@@ -135,11 +193,7 @@ fn printCwd(
 ) !void {
     const normalized = try replaceAll(allocator, cwd, "\\", "/");
     const view = try shortView(allocator, normalized, home, use_short_name);
-
-    try out.appendSlice(allocator, Ansi.blue);
-    try out.appendSlice(allocator, Ansi.bold);
-    try out.appendSlice(allocator, view);
-    try out.appendSlice(allocator, Ansi.reset);
+    try appendStyled(out, allocator, Ansi.blue ++ Ansi.bold, view);
 }
 
 /// Fold `home` into "~", then split on '/' and abbreviate the intermediate
@@ -214,19 +268,13 @@ fn printGit(
 
     const branch = try branchName(io, allocator, root);
     try out.appendSlice(allocator, " @ ");
-    try out.appendSlice(allocator, Ansi.yellow);
-    try out.appendSlice(allocator, branch);
-    try out.appendSlice(allocator, Ansi.reset);
+    try appendStyled(out, allocator, Ansi.yellow, branch);
 
     const changed = try fileChanges(io, allocator, root);
     if (changed > 0) {
-        var num_buf: [20]u8 = undefined;
-        const num = std.fmt.bufPrint(&num_buf, "{d}", .{changed}) catch unreachable;
-        try out.appendSlice(allocator, Ansi.red);
-        try out.appendSlice(allocator, " <");
-        try out.appendSlice(allocator, num);
-        try out.appendSlice(allocator, ">");
-        try out.appendSlice(allocator, Ansi.reset);
+        var num_buf: [32]u8 = undefined;
+        const suffix = std.fmt.bufPrint(&num_buf, " <{d}>", .{changed}) catch unreachable;
+        try appendStyled(out, allocator, Ansi.red, suffix);
     }
 }
 
@@ -288,11 +336,8 @@ fn runGit(
 /// the trimmed output is empty the count is 0, matching `count_changed_files`.
 fn countChangedFiles(output: []const u8) usize {
     if (output.len == 0) return 0;
-
-    var count: usize = 0;
-    var it = std.mem.splitScalar(u8, output, '\n');
-    while (it.next()) |_| count += 1;
-    return count;
+    // N entries are separated by N-1 newlines.
+    return std.mem.count(u8, output, "\n") + 1;
 }
 
 /// Append one ` (value)` per BP_ENV_* variable, italicized.
@@ -335,23 +380,9 @@ fn replaceAll(
     return std.mem.replaceOwned(u8, allocator, input, needle, replacement);
 }
 
-/// Write to stdout with the Windows text-mode translation applied (see
-/// `toTextMode`). Used for every byte the tool emits.
-fn stdoutWriteAllText(io: Io, bytes: []const u8) !void {
-    var out: std.ArrayList(u8) = .empty;
-    defer out.deinit(std.heap.page_allocator);
-    try toTextMode(std.heap.page_allocator, &out, bytes);
-    try Io.File.stdout().writeStreamingAll(io, out.items);
-}
-
-/// Reproduce Windows text-mode stdout: every `\n` becomes `\r\n` (so a `\r\n`
-/// in the source ends up as `\r\r\n`, exactly like the C3 original).
-fn toTextMode(allocator: Allocator, out: *std.ArrayList(u8), bytes: []const u8) !void {
-    for (bytes) |byte| {
-        if (byte == '\n') {
-            try out.appendSlice(allocator, "\r\n");
-        } else {
-            try out.append(allocator, byte);
-        }
-    }
+/// Write bytes to stdout. Every constant passed here has already been expanded
+/// by `textMode`, and the dynamic pieces (cwd, branch, exe name) cannot contain
+/// a raw `\n` on Windows, so no runtime translation is needed.
+fn writeStdout(io: Io, bytes: []const u8) !void {
+    try Io.File.stdout().writeStreamingAll(io, bytes);
 }

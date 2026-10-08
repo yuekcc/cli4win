@@ -4,7 +4,11 @@ import std::os::process;
 import std::os::env;
 import cmd;
 
-const NEW_LINE = "\r\n";
+// Platform-native line ends. On Windows the CRT is in text mode and widens
+// every '\n' to "\r\n" on write, so the constant stays a single '\n' (a literal
+// "\r\n" would be doubled into "\r\r\n"). POSIX has no text mode, so '\n' is
+// emitted verbatim.
+const NEW_LINE = "\n";
 
 macro String style(String $style, String $str)
 {
