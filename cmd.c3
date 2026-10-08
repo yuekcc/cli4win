@@ -40,14 +40,14 @@ fn CommandResult? execute(Allocator allocator, String[] command_line)
 		DString result = dstring::new(tmem);
 		while (true)
 		{
-			char[512] buf @noinit;
-			sz len = process.read_stdout(&buf, buf.len)!;
-			if (len == 0)
+			char[8192] buf;
+			sz len = process.read_stdout(&buf, buf.len) ?? -1;
+			if (len <= 0)
 			{
 				break;
 			}
 
-			result.write(buf[:len])!;
+			result.append_bytes(buf[:len]);
 		}
 
 		int exit_code = process.join()!;
