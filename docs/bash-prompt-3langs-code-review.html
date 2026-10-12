@@ -88,7 +88,7 @@
   <strong>结论先行</strong>
   <ul style="margin:6px 0 0">
     <li>三份实现功能等价，我实测在同一目录下输出<b>逐字节一致</b>（同样的 ANSI 颜色、同样的 CRLF、同样的 <code>--init</code> 文本），只有可执行文件名不同。这是一个非常干净的对照样本。</li>
-    <li><b>代码量</b>：Odin 最短（纯代码 220 行）&lt; Zig（267）&lt; C3（293，含自写的 <code>cmd.c3</code>）。差距几乎全来自「分配器样板 + 错误处理样板」。</li>
+    <li><b>代码量</b>：只看提示符本体，Odin 最短（纯代码 220 行）&lt; C3（241）&lt; Zig（267）；C3 另需 52 行 <code>cmd.c3</code>——因为 std 的 <code>run_capture_stdout</code> 是先 <code>join</code> 再单次读，会短读、输出过大还会死锁，得自己写一份边跑边读、不限长度的。差距主要来自「分配器样板 + 错误处理样板」。</li>
     <li><b>三种风格清晰可分</b>：C3 = 高层语法糖 + 隐式内存，代码短但行为藏得多；Odin = 隐式 <code>context.allocator</code> + 内置子进程，最平衡；Zig = 一切显式 + 最强 comptime，最可预测也最啰嗦。</li>
     <li>这三份代码里我找到<b>三个值得注意的细节</b>：C3 的越界读 <code>xs[1]</code>、C3 取首字符会切断 UTF-16 代理对、以及 <code>build_odin.sh</code> 注释与参数不一致——见第 6 节。</li>
   </ul>
@@ -342,8 +342,24 @@ current = std.fs.path.dirname(current) orelse return null;
 
 <h3>3.7 运行子进程（最能体现标准库差异）</h3>
 
-<div class="lang c3">C3 — std 只有底层 spawn/read/join，仓库自写 cmd.c3（52 行）</div>
-<pre><code>Process process = process::spawn(
+<div class="lang c3">C3 — std 有一行 run_capture_stdout，但它是先 join 再单次读（会短读、甚至死锁）</div>
+<pre><code>// std 里其实有一行版本，但顺序是「先 join 等子进程结束，再读一次管道」
+// （lib/std/os/process.c3:70）：
+String? run_capture_stdout(char[] buffer, String[] command_line,
+                           SpawnOptions options = {}, String[] environment = {})
+{
+    Process process = process::spawn(command_line, options, environment)!;
+    defer (void)process.destroy();
+    process.join()!;                                        // 先把子进程等完
+    sz len = process.read_stdout(buffer.ptr, buffer.len)!;  // 再读一次管道
+    if (len == 0) return "";
+    return (String)buffer[:len];
+}
+
+// 实测：输出 ≤4KB 能全取；4KB~管道容量只拿到约 4092 字节（单次短读）；
+// 输出超过管道容量时，子进程写满管道后阻塞、永不退出，join() 直接死锁。
+// git status 的输出长度不可控，于是 cmd.c3（52 行）换成边跑边循环读 + 增长 DString：
+Process process = process::spawn(
     command_line, STDERR_TO_STDOUT | INHERIT_ENV | NO_WINDOW)!;
 defer (void)process.destroy();
 close_stdin(&amp;process);          // 手工关 stdin，否则子进程可能一直等输入
@@ -351,7 +367,7 @@ while (true) {
     char[8192] buf;
     sz len = process.read_stdout(&amp;buf, buf.len) ?? -1;
     if (len &lt;= 0) break;
-    result.append_bytes(buf[:len]);
+    result.append_bytes(buf[:len]);     // 累积到 DString，没有长度上限
 }
 int exit_code = process.join()!;</code></pre>
 
@@ -368,7 +384,7 @@ return strings.clone(strings.trim_space(string(stdout)))</code></pre>
 return std.mem.trim(u8, result.stdout, " \t\r\n");</code></pre>
 
 <div class="callout note">
-  <b>这是 C3 标准库唯一明显落后的地方。</b>「捕获子进程输出」这种日常需求，Odin 和 Zig 都内置成一行；C3 只有裸的 <code>spawn/read_stdout/join</code>，逼得仓库额外维护一个 <code>cmd.c3</code>，还要手动关 stdin 和句柄。这也是 C3 版代码量居首的直接原因之一。
+  <b>C3 并不是没有子进程捕获，而是 <code>std::os::process::run_capture_stdout</code>（<code>lib/std/os/process.c3:70</code>）的实现是「<code>join()</code> 等子进程结束后，再对管道做<b>一次</b> <code>read_stdout</code>」。</b>后果有两层：①单次管道读是短读，实测即便给 100&nbsp;KB 缓冲区，输出 8&nbsp;KB 也只拿到约 4092 字节；②输出超过管道容量时，子进程写满管道后阻塞、永不退出，<code>join()</code> 直接死锁（实测 300&nbsp;KB 输出挂死）。<code>bash_prompt</code> 的 <code>git status --porcelain</code> 输出长度不可控，所以仓库用 <code>cmd.c3</code> 换成「边跑边循环 <code>read_stdout</code> + 增长 <code>DString</code>」：既持续排空管道（不死锁），又不限长度。Odin 的 <code>os.process_exec</code>、Zig 的 <code>std.process.run</code> 内部本来就是这种「先排空再 wait」的循环，所以直接一行、且默认不限长度（Zig 还另有可选的 <code>stdout_limit</code>）。三者的差别是<b>「一次性读（有上限、可能死锁）」vs「边跑边读、不限长度」</b>，而不是「有 vs 没有」。
 </div>
 
 <h3>3.8 换行 / 跨平台文本模式（一个很妙的对照点）</h3>
@@ -465,7 +481,7 @@ if (use_short_name) {
   <li><b>强项：</b>高层标准库最全（<code>std::io::path</code>、<code>DString</code>、<code>String</code> 方法、<code>env::get_home_dir</code> 跨平台封装），配合隐式 <code>tmem/mem</code> 与 <code>@pool</code>，样板极少，业务逻辑密集时体验最顺。</li>
   <li><b>强项：</b>产物体积最小，适合对分发体积敏感的场景。</li>
   <li><b>弱项：</b>很多行为是<b>隐式</b>的——CRLF 靠 CRT 文本模式、临时内存靠池生命周期、<code>!!</code> 直接崩溃。读代码需要「脑内补全」运行时的默认行为，跨平台语义容易被链接方式改变。</li>
-  <li><b>弱项：</b>子进程这种基础能力反而要自写模块；本例还引入了 C3 独有的自定义入口 <code>_main</code> + 空 <code>main</code> 的 hack。</li>
+  <li><b>弱项：</b>std 的子进程捕获 <code>run_capture_stdout</code> 是先 <code>join</code> 再单次读，会短读、输出超过管道容量还会死锁，要稳就得自己边跑边循环读（本例的 <code>cmd.c3</code>，52 行）；本例还引入了 C3 独有的自定义入口 <code>_main</code> + 空 <code>main</code> 的 hack。</li>
   <li><b>一句话：</b>写起来最舒服，读起来需要信任运行时；代码短是「用隐式换来的」。</li>
 </ul>
 

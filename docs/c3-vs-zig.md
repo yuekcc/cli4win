@@ -341,7 +341,7 @@ fn jsonString(obj: std.json.ObjectMap, key: []const u8) ?[]const u8 {
 
 ### 3.3 进程 / 命令执行 —— Zig 反而更好
 
-**C3** 的 `std::os::process` 只给底层 `spawn` / `read_stdout` / `join`，所以项目**额外手写了 `cmd.c3`（52 行）**，还要手工关 stdin 和 win32 句柄：
+**C3** 的 `std::os::process` 其实提供了一个一行函数 `run_capture_stdout`，但它的实现是「先 `join()` 等子进程结束，再对管道读一次」（`lib/std/os/process.c3:70`）——单次管道读是短读，且输出超过管道容量时子进程写满管道会阻塞、`join()` 死锁。项目需要一份稳定、不限长度的捕获，于是**额外手写了 `cmd.c3`（52 行）**：边跑边循环读、累积到 `DString`，还要手工关 stdin 和 win32 句柄：
 
 ```c3
 // cmd.c3
@@ -375,7 +375,7 @@ const result = std.process.run(allocator, io, .{ .argv = argv.items }) catch ret
 return std.mem.trim(u8, result.stdout, " \t\r\n");
 ```
 
-**小结**：**这一项 Zig 胜出**。说明 Zig std 并非全面落后——在进程、哈希、加密、HTTP、comptime 等底层/通用领域覆盖更广。C3 的 `bash_prompt` 反而要依赖自制的 `cmd.c3`。
+**小结**：**这一项 Zig 胜出**——`std.process.run` 内部就是「边读边排空、读完再 wait」，一行拿到完整输出；C3 的 `run_capture_stdout` 是先 `join` 再单次读，既会截断、又可能死锁，所以 `bash_prompt` 要依赖自制的 `cmd.c3`。这说明 Zig std 并非全面落后，在进程、哈希、加密、HTTP、comptime 等底层/通用领域覆盖更广。
 
 ### 3.4 动态字符串与格式化
 
@@ -541,7 +541,7 @@ Zig 需要 tagged union 解包 + 三个 helper（`jsonString`/`jsonBool`/`jsonAr
 
 ### 4.5 `cmd.c3`（52 行）→ 无
 
-C3 为了「捕获子进程输出」自写了 `cmd.c3`；Zig 用 `std.process.run` 一行解决。**这是 Zig std 反超的典型例子。**
+C3 的 `run_capture_stdout` 先 `join()` 再单次读管道，会短读、输出过大还会死锁；项目为「稳定、不限长度地捕获子进程输出」自写了 `cmd.c3`。Zig 的 `std.process.run` 内部是「边读边排空、读完再 wait」，一行解决。**这是 Zig std 反超的典型例子。**
 
 ---
 
