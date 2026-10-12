@@ -25,3 +25,4 @@ odin 实现需要 [odin](https://odin-lang.org/)。
 - `sh build.sh`：用 c3c 编译 bash_prompt、open、launch。
 - `sh build_zig.sh`：用 zig 编译 bash_prompt、open、launch。
 - `sh build_odin.sh`：用 odin 编译 bash_prompt。
+- `sh build_bash_prompt_mingw64.sh`：用 MinGW 目标 + zig cc 构建一个依赖最少的 `bash_prompt`（需 c3c、zig、objdump），并自带依赖校验与冒烟测试。分析见 `docs/c3-bash-prompt-clean-build.md`。

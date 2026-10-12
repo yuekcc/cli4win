@@ -3,6 +3,7 @@ import std::io;
 import std::core::string::conv;
 import std::os::process;
 import std::os::env;
+import std::os::win32;
 import cmd;
 
 // Platform-native line ends. On Windows the CRT is in text mode and widens
@@ -20,6 +21,24 @@ faultdef
 	GIT_ROOT_NOT_FOUND, PARSE_DIFF_STATE_FAILED
 ;
 
+// Existence check that avoids std::io::path::exists.
+//
+// On Windows `path::exists` calls `PathFileExistsW`, which drags in SHLWAPI.dll.
+// We only need it to locate the `.git` directory, so use GetFileAttributesExW
+// (KERNEL32) instead and keep the import list minimal. `GetFileAttributesExW`
+// also resolves device names such as "NUL"/"CON", matching the C3 semantics.
+fn bool path_exists(String path)
+{
+	@pool()
+	{
+		Win32_FILE_ATTRIBUTE_DATA data;
+		return (bool)win32::getFileAttributesExW(
+			path.to_temp_utf16()!!,
+			Win32_GET_FILEEX_INFO_LEVELS.STANDARD,
+			&data);
+	};
+}
+
 struct Repo
 {
 	Path root;
@@ -36,7 +55,7 @@ fn bool? Repo.try_init(&self, Allocator allocator, Path cwd)
 		for (;;)
 		{
 			Path git_dir = target.append(tmem, ".git")!;
-			if (path::exists(git_dir))
+			if (path_exists(git_dir))
 			{
 				self.root = path::new(self.allocator, git_dir.parent())!;
 				return true;
