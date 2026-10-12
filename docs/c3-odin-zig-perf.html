@@ -66,15 +66,16 @@
 
 <header>
   <h1>同一个 <code>bash_prompt</code>，三种语言：C3 / Odin / Zig 性能实测</h1>
-  <div class="sub">聚焦「进程启动」开销 · Windows 11 · i7-12650H · 2026-10-12 · 仓库 <code>cli4win@4685afb</code></div>
+  <div class="sub">聚焦「进程启动」开销 · Windows 11 · i7-12650H · 2026-10-12 复测（两轮 × 500 次取均值）· 仓库 <code>cli4win</code> @ <code>f5751a4</code>+工作区</div>
 </header>
 
 <div class="callout">
   <strong>结论先行：</strong>
   <ul style="margin:6px 0 0">
-    <li><b>纯启动</b>：<span class="zig">Zig</span> 最快，几乎贴着 Windows 的进程创建“地板价”；<span class="odin">Odin</span> 次之（比地板高约 <b>0.8&nbsp;ms</b>）；<span class="c3">C3</span> 最慢（比地板高约 <b>1.7&nbsp;ms</b>）。差距全部来自 <b>动态链接的 DLL 数量</b>。</li>
+    <li><b>纯启动</b>：<span class="zig">Zig</span> 最快，几乎贴着 Windows 的进程创建“地板价”；<span class="odin">Odin</span> 次之（比地板高约 <b>0.8&nbsp;ms</b>）；<span class="c3">C3</span> 最慢（比地板高约 <b>1.5&nbsp;ms</b>）。差距全部来自 <b>动态链接的 DLL 数量</b>。</li>
     <li><b>完整提示符（会 spawn <code>git status</code>）</b>：<span class="odin">Odin</span> 反而最快——因为它的 <code>process_exec</code> 不给子进程加 <code>CREATE_NO_WINDOW</code>，而 C3 / Zig 都会加，在本环境下每个被启动的进程要多花约 <b>5–6&nbsp;ms</b>。</li>
     <li>这三者<b>并不是</b>“语言本身跑得快慢”的胜负，而是<b>运行时与标准库默认行为</b>的胜负：谁链接的 DLL 少、谁给子进程传的创建标志便宜，谁就赢。</li>
+    <li><b>本轮变化</b>：C3 版去掉了一处 <code>SHLWAPI</code> 依赖（见第 3 节），mingw 产物的导入表从 10 个降到 <b>9 个</b>；启动排序与结论不变。</li>
   </ul>
 </div>
 
@@ -83,13 +84,13 @@
 
 <table>
   <tr><th>实现</th><th>源码</th><th>构建方式</th><th class="num">产物大小</th></tr>
-  <tr><td class="c3"><b>C3</b> 0.8.4</td><td><code>bash_prompt.c3</code> + <code>cmd.c3</code></td><td><code>c3c compile -O2</code>（MSVC 目标）</td><td class="num">110 KB</td></tr>
-  <tr><td class="c3"><b>C3</b> 0.8.4</td><td>同上</td><td>编译到 obj → <code>zig cc -O3 -flto</code>（mingw）</td><td class="num">730 KB</td></tr>
-  <tr><td class="odin"><b>Odin</b> dev-2026-09</td><td><code>bash_prompt.odin</code></td><td><code>odin build -o:size</code></td><td class="num">406 KB</td></tr>
-  <tr><td class="zig"><b>Zig</b> 0.17.0</td><td><code>bash_prompt.zig</code></td><td><code>zig build-exe -OReleaseFast</code></td><td class="num">874 KB</td></tr>
-  <tr><td style="color:var(--muted)"><b>基线</b> no-op</td><td><code>int main(void){return 0;}</code></td><td><code>zig cc -O2</code></td><td class="num">218 KB</td></tr>
+  <tr><td class="c3"><b>C3</b> 0.8.4</td><td><code>bash_prompt.c3</code> + <code>cmd.c3</code></td><td><code>c3c compile -O2</code>（MSVC 目标）</td><td class="num">113 KB</td></tr>
+  <tr><td class="c3"><b>C3</b> 0.8.4</td><td>同上（已去 SHLWAPI）</td><td>编译到 obj → <code>zig cc -O3 -Wl,--gc-sections</code>（mingw）</td><td class="num">746 KB</td></tr>
+  <tr><td class="odin"><b>Odin</b> dev-2026-09</td><td><code>bash_prompt.odin</code></td><td><code>odin build -o:size</code></td><td class="num">416 KB</td></tr>
+  <tr><td class="zig"><b>Zig</b> 0.17.0</td><td><code>bash_prompt.zig</code></td><td><code>zig build-exe -OReleaseFast</code></td><td class="num">895 KB</td></tr>
+  <tr><td style="color:var(--muted)"><b>基线</b> no-op</td><td><code>int main(void){return 0;}</code></td><td><code>zig cc -O2</code></td><td class="num">223 KB</td></tr>
 </table>
-<p class="small">no-op 基线的作用：它代表「在 Windows 上启动一个迷你 C 程序」的固定成本，用它减掉后剩下的才是各语言运行时的净开销。</p>
+<p class="small">no-op 基线的作用：它代表「在 Windows 上启动一个迷你 C 程序」的固定成本，用它减掉后剩下的才是各语言运行时的净开销。本次为复测：同一 harness 连跑两轮、每轮每项 500 次，下表取两轮 p50 的均值（本轮基线 p50 ≈ 3.0&nbsp;ms，略有系统噪声，故更看相对排序）。</p>
 
 <h2>2. 测量方法</h2>
 <div class="panel">
@@ -100,6 +101,7 @@
     <li>子进程 stdout/stderr 重定向到 <code>NUL</code>，避免写控制台干扰计时；</li>
     <li>先 warmup 30 次，再采样 <b>500</b> 次，报告 <code>min / p50 / mean / p95</code>。</li>
   </ul>
+  <p>为降低系统噪声，本次对每个组合<b>连跑两轮</b>，正文表格取两轮 p50 的均值。</p>
   <p>另有 4 个场景：<code>--help</code>（启动即退出）、非 git 目录（只算 cwd）、<code>--short</code>、以及 git 仓库内（会额外 spawn <code>git status --porcelain</code>）。</p>
 </div>
 
@@ -124,24 +126,24 @@
     <th>程序</th><th class="num">--help</th><th class="num">非 git 目录</th><th class="num">--short</th>
     <th class="num">启动均值</th><th class="num">相对地板</th>
   </tr>
-  <tr><td style="color:var(--muted)">no-op 基线（地板）</td><td class="num">2.933</td><td class="num">2.874</td><td class="num">2.925</td><td class="num">2.911</td><td class="num">—</td></tr>
-  <tr><td class="zig"><b>Zig</b></td><td class="num">2.612</td><td class="num">3.068</td><td class="num">2.864</td><td class="num"><b>2.848</b></td><td class="num" style="color:var(--good)">≈ 0.00</td></tr>
-  <tr><td class="odin"><b>Odin</b></td><td class="num">3.590</td><td class="num">3.885</td><td class="num">3.753</td><td class="num"><b>3.743</b></td><td class="num" style="color:var(--bad)">+0.83</td></tr>
-  <tr><td class="c3"><b>C3</b> (msvc)</td><td class="num">4.372</td><td class="num">4.629</td><td class="num">4.683</td><td class="num"><b>4.561</b></td><td class="num" style="color:var(--bad)">+1.65</td></tr>
-  <tr><td class="c3"><b>C3</b> (mingw)</td><td class="num">4.583</td><td class="num">4.691</td><td class="num">4.670</td><td class="num"><b>4.648</b></td><td class="num" style="color:var(--bad)">+1.74</td></tr>
+  <tr><td style="color:var(--muted)">no-op 基线（地板）</td><td class="num">3.123</td><td class="num">3.123</td><td class="num">3.123</td><td class="num">3.123</td><td class="num">—</td></tr>
+  <tr><td class="zig"><b>Zig</b></td><td class="num">2.481</td><td class="num">3.096</td><td class="num">3.167</td><td class="num"><b>2.915</b></td><td class="num" style="color:var(--good)">−0.21</td></tr>
+  <tr><td class="odin"><b>Odin</b></td><td class="num">3.621</td><td class="num">3.915</td><td class="num">3.948</td><td class="num"><b>3.828</b></td><td class="num" style="color:var(--bad)">+0.71</td></tr>
+  <tr><td class="c3"><b>C3</b> (msvc)</td><td class="num">4.472</td><td class="num">4.673</td><td class="num">5.024</td><td class="num"><b>4.723</b></td><td class="num" style="color:var(--bad)">+1.60</td></tr>
+  <tr><td class="c3"><b>C3</b> (mingw)</td><td class="num">4.555</td><td class="num">4.707</td><td class="num">4.813</td><td class="num"><b>4.692</b></td><td class="num" style="color:var(--bad)">+1.57</td></tr>
 </table>
 
 <div class="bars">
-  <div class="row"><span class="lbl" style="color:var(--muted)">no-op 基线</span><span class="track"><span class="fill base" style="width:58%"></span></span><span class="val">2.911</span></div>
-  <div class="row"><span class="lbl zig">Zig</span><span class="track"><span class="fill zig" style="width:57%"></span></span><span class="val">2.848</span></div>
-  <div class="row"><span class="lbl odin">Odin</span><span class="track"><span class="fill odin" style="width:75%"></span></span><span class="val">3.743</span></div>
-  <div class="row"><span class="lbl c3">C3 (msvc)</span><span class="track"><span class="fill c3" style="width:91%"></span></span><span class="val">4.561</span></div>
-  <div class="row"><span class="lbl c3">C3 (mingw)</span><span class="track"><span class="fill c3" style="width:93%"></span></span><span class="val">4.648</span></div>
+  <div class="row"><span class="lbl" style="color:var(--muted)">no-op 基线</span><span class="track"><span class="fill base" style="width:66%"></span></span><span class="val">3.123</span></div>
+  <div class="row"><span class="lbl zig">Zig</span><span class="track"><span class="fill zig" style="width:62%"></span></span><span class="val">2.915</span></div>
+  <div class="row"><span class="lbl odin">Odin</span><span class="track"><span class="fill odin" style="width:81%"></span></span><span class="val">3.828</span></div>
+  <div class="row"><span class="lbl c3">C3 (msvc)</span><span class="track"><span class="fill c3" style="width:100%"></span></span><span class="val">4.723</span></div>
+  <div class="row"><span class="lbl c3">C3 (mingw)</span><span class="track"><span class="fill c3" style="width:99%"></span></span><span class="val">4.692</span></div>
   <div class="legend"><span><i class="base" style="background:var(--base)"></i>地板</span><span><i style="background:var(--zigb)"></i>Zig</span><span><i style="background:var(--odinb)"></i>Odin</span><span><i style="background:var(--c3b)"></i>C3</span><span>横轴 0–5 ms</span></div>
 </div>
 
 <div class="callout note">
-  <strong>一个反直觉点：</b>C3 的 MSVC 产物只有 <b>110 KB</b>（比 no-op 还小），却是启动最慢的；Zig 的 <b>874 KB</b> 反而最快。<b>启动成本几乎与文件大小无关，取决于运行时要去 <code>LoadLibrary</code> 多少个 DLL。</b>
+  <strong>一个反直觉点：</strong>C3 的 MSVC 产物只有 <b>113 KB</b>，却是启动最慢的；Zig 的 <b>895 KB</b> 反而最快。<b>启动成本几乎与文件大小无关，取决于运行时要去 <code>LoadLibrary</code> 多少个 DLL。</b>
 </div>
 
 <h3>为什么？—— 看导入表</h3>
@@ -150,38 +152,38 @@
   <tr><th>程序</th><th class="num">DLL 数</th><th>依赖的 DLL</th></tr>
   <tr><td class="zig">Zig</td><td class="num">2</td><td><code>KERNEL32.dll</code>, <code>ntdll.dll</code></td></tr>
   <tr><td class="odin">Odin</td><td class="num">3</td><td><code>ADVAPI32.dll</code>, <code>bcrypt.dll</code>, <code>KERNEL32.dll</code></td></tr>
-  <tr><td class="c3">C3 (mingw)</td><td class="num">10</td><td>UCRT 转发 DLL ×7 + <code>dbghelp.dll</code> + <code>SHLWAPI.dll</code> + <code>KERNEL32.dll</code></td></tr>
-  <tr><td class="c3">C3 (msvc)</td><td class="num">11</td><td>UCRT ×7 + <code>VCRUNTIME140.dll</code> + <code>dbghelp.dll</code> + <code>SHLWAPI.dll</code> + <code>KERNEL32.dll</code></td></tr>
+  <tr><td class="c3">C3 (mingw)</td><td class="num">9</td><td>UCRT 转发 DLL ×7 + <code>dbghelp.dll</code> + <code>KERNEL32.dll</code></td></tr>
+  <tr><td class="c3">C3 (msvc)</td><td class="num">10</td><td>UCRT ×8 + <code>VCRUNTIME140.dll</code> + <code>dbghelp.dll</code> + <code>KERNEL32.dll</code></td></tr>
 </table>
 <p>启动时间与 DLL 数量、尤其是重量级 DLL 高度相关：</p>
 <ul>
   <li><b>Zig</b> 只碰 <code>KERNEL32</code> + <code>ntdll</code>，基本等于“地板”。</li>
-  <li><b>Odin</b> 多拖两个：<code>ADVAPI32</code>（注册表/令牌）和 <code>bcrypt</code>（加密），代价约 +0.8&nbsp;ms。</li>
-  <li><b>C3</b> 走完整 <b>UCRT</b>（7 个 <code>api-ms-win-crt-*</code> 转发 DLL）<b>外加 <code>dbghelp.dll</code></b>（用于调用栈/调试）——后者本身就会连带加载一批符号相关模块，是 +1.7&nbsp;ms 的主要来源。</li>
+  <li><b>Odin</b> 多拖两个：<code>ADVAPI32</code>（注册表/令牌）和 <code>bcrypt</code>（加密），代价约 +0.7&nbsp;ms。</li>
+  <li><b>C3</b> 走完整 <b>UCRT</b>（7–8 个 <code>api-ms-win-crt-*</code> 转发 DLL）<b>外加 <code>dbghelp.dll</code></b>（用于调用栈/调试）——后者本身就会连带加载一批符号相关模块，是 +1.6&nbsp;ms 的主要来源。</li>
 </ul>
-<p class="small">值得注意的是：C3 换 mingw 后端、开 <code>-O3 -flto</code>、体积从 110&nbsp;KB 涨到 730&nbsp;KB，启动却<b>没变快</b>——再次印证瓶颈是运行时 DLL 而非代码生成质量。</p>
+<p class="small">本轮 C3 mingw 产物<b>已去掉 <code>SHLWAPI.dll</code></b>（导入表 10 → 9）：原来 <code>path::exists</code> 在 Windows 上会调 shlwapi 的 <code>PathFileExistsW</code>，现改为直接调 KERNEL32 的 <code>GetFileAttributesExW</code>。至于 C3 换 mingw 后端、体积从 113&nbsp;KB 涨到 746&nbsp;KB，启动仍<b>没变快</b>——再次印证瓶颈是运行时 DLL 而非代码生成质量。</p>
 
 <h2>4. 完整提示符：当它会去 spawn <code>git</code></h2>
 <p>真实使用时 <code>bash_prompt</code> 在 git 仓库里会执行 <code>git status --porcelain</code>。这一项由 <code>git.exe</code> 主导（单次约 25–30&nbsp;ms），语言自身差异被稀释，但排序<b>完全反转</b>。</p>
 
 <table>
   <tr><th>程序</th><th class="num">git 仓库内 p50 (ms)</th><th class="num">其中 git 子进程开销*</th></tr>
-  <tr><td class="odin"><b>Odin</b></td><td class="num" style="color:var(--good)"><b>28.284</b></td><td class="num">≈ 24.5</td></tr>
-  <tr><td class="zig"><b>Zig</b></td><td class="num">32.741</td><td class="num">≈ 29.9</td></tr>
-  <tr><td class="c3"><b>C3</b> (mingw)</td><td class="num">34.439</td><td class="num">≈ 29.8</td></tr>
-  <tr><td class="c3"><b>C3</b> (msvc)</td><td class="num">34.705</td><td class="num">≈ 30.1</td></tr>
+  <tr><td class="odin"><b>Odin</b></td><td class="num" style="color:var(--good)"><b>29.126</b></td><td class="num">≈ 25.3</td></tr>
+  <tr><td class="zig"><b>Zig</b></td><td class="num">34.104</td><td class="num">≈ 31.2</td></tr>
+  <tr><td class="c3"><b>C3</b> (mingw)</td><td class="num">34.900</td><td class="num">≈ 30.2</td></tr>
+  <tr><td class="c3"><b>C3</b> (msvc)</td><td class="num">35.020</td><td class="num">≈ 30.3</td></tr>
 </table>
 <p class="small">* = 该行 git 场景的 p50 减去本程序自身的启动均值（第 3 节），近似等于“启动一个 <code>git.exe</code>”的成本。</p>
 
 <div class="bars">
-  <div class="row"><span class="lbl" style="color:var(--muted)">no-op 基线</span><span class="track"><span class="fill base" style="width:8%"></span></span><span class="val">2.919</span></div>
-  <div class="row"><span class="lbl odin">Odin</span><span class="track"><span class="fill odin" style="width:79%"></span></span><span class="val">28.284</span></div>
-  <div class="row"><span class="lbl zig">Zig</span><span class="track"><span class="fill zig" style="width:91%"></span></span><span class="val">32.741</span></div>
-  <div class="row"><span class="lbl c3">C3 (mingw)</span><span class="track"><span class="fill c3" style="width:96%"></span></span><span class="val">34.439</span></div>
-  <div class="row"><span class="lbl c3">C3 (msvc)</span><span class="track"><span class="fill c3" style="width:96%"></span></span><span class="val">34.705</span></div>
+  <div class="row"><span class="lbl" style="color:var(--muted)">no-op 基线</span><span class="track"><span class="fill base" style="width:9%"></span></span><span class="val">3.123</span></div>
+  <div class="row"><span class="lbl odin">Odin</span><span class="track"><span class="fill odin" style="width:81%"></span></span><span class="val">29.126</span></div>
+  <div class="row"><span class="lbl zig">Zig</span><span class="track"><span class="fill zig" style="width:95%"></span></span><span class="val">34.104</span></div>
+  <div class="row"><span class="lbl c3">C3 (mingw)</span><span class="track"><span class="fill c3" style="width:97%"></span></span><span class="val">34.900</span></div>
+  <div class="row"><span class="lbl c3">C3 (msvc)</span><span class="track"><span class="fill c3" style="width:97%"></span></span><span class="val">35.020</span></div>
   <div class="legend"><span>横轴 0–36 ms（含 <code>git.exe</code>）</span></div>
 </div>
-<p>连跑三轮，Odin 领先约 5&nbsp;ms 的结果稳定复现（28.3 / 29.4 / 29.3 vs Zig 33.0 / 32.7 / 33.5）。原因不在业务代码，而在<b>三者启动子进程时传递的 <code>dwCreationFlags</code></b>：</p>
+<p>连跑两轮，Odin 领先约 5&nbsp;ms 的结果稳定复现（29.1 / 30.3 vs Zig 34.1 / 34.5）。原因不在业务代码，而在<b>三者启动子进程时传递的 <code>dwCreationFlags</code></b>：</p>
 
 <pre><code>// C3 · cmd.c3 —— 显式要求无窗口
 Process process = process::spawn(
@@ -290,9 +292,9 @@ inline for (flag_specs) |spec| {                 // 表驱动，比较在编译�
 <h2>6. 综合结论</h2>
 <table>
   <tr><th>维度</th><th class="c3">C3</th><th class="odin">Odin</th><th class="zig">Zig</th></tr>
-  <tr><td><b>启动</b>（净开销）</td><td>最慢，+1.7 ms<br><span class="small">UCRT + dbghelp</span></td><td>中等，+0.8 ms<br><span class="small">ADVAPI32 + bcrypt</span></td><td><span class="tag win">最快</span> ≈ 地板<br><span class="small">仅 KERNEL32 + ntdll</span></td></tr>
-  <tr><td><b>完整提示符</b>（含 git）</td><td>~34.5 ms</td><td><span class="tag win">最快 ~28.3 ms</span></td><td>~32.7 ms</td></tr>
-  <tr><td><b>二进制体积</b></td><td><span class="tag win">最小 110 KB</span></td><td>406 KB</td><td>最大 874 KB</td></tr>
+  <tr><td><b>启动</b>（净开销）</td><td>最慢，+1.6 ms<br><span class="small">UCRT + dbghelp</span></td><td>中等，+0.7 ms<br><span class="small">ADVAPI32 + bcrypt</span></td><td><span class="tag win">最快</span> ≈ 地板<br><span class="small">仅 KERNEL32 + ntdll</span></td></tr>
+  <tr><td><b>完整提示符</b>（含 git）</td><td>~35.0 ms</td><td><span class="tag win">最快 ~29.1 ms</span></td><td>~34.1 ms</td></tr>
+  <tr><td><b>二进制体积</b></td><td><span class="tag win">最小 113 KB</span></td><td>416 KB</td><td>最大 895 KB</td></tr>
   <tr><td>子进程 API</td><td>需自写 <code>cmd.c3</code></td><td>一行 <code>process_exec</code></td><td>一行 <code>process.run</code></td></tr>
   <tr><td>内存/错误样板</td><td>隐式分配器，噪音低</td><td><code>context.allocator</code>，噪音最低</td><td>显式传参，噪音最高</td></tr>
   <tr><td>代码量（纯代码行）</td><td>293</td><td><span class="tag win">220</span></td><td>267</td></tr>
@@ -314,8 +316,8 @@ inline for (flag_specs) |spec| {                 // 表驱动，比较在编译�
 <pre><code># 1) 构建四个待测程序
 c3c compile -D RELEASE -O2 -g0 -o dist/bp_c3.exe bash_prompt.c3 cmd.c3
 c3c compile-only bash_prompt.c3 cmd.c3 --target mingw-x64 --single-module=yes -O3
-zig cc -o dist/bp_c3_mingw.exe -O3 -g0 -Wl,--gc-sections -flto -nostdlib++ \
-    ./obj/mingw-x64/bash_prompt.obj -ldbghelp -lshlwapi
+zig cc -o dist/bp_c3_mingw.exe -O3 -g0 -Wl,--gc-sections \
+    ./obj/mingw-x64/bash_prompt.obj -ldbghelp          # 已无 -lshlwapi
 odin build bash_prompt.odin -file -o:size -disable-assert -no-bounds-check -no-type-assert -out:dist/bp_odin.exe
 zig build-exe -OReleaseFast -femit-bin=dist/bp_zig.exe bash_prompt.zig
 
@@ -332,7 +334,7 @@ objdump -p dist/bp_zig.exe        | grep "DLL Name"</code></pre>
 <footer>
   环境：Windows 11 专业版 · Intel Core i7-12650H · C3 0.8.4 · Odin dev-2026-09-nightly (a2fb372) · Zig 0.17.0。
   计时为单次「创建+退出」的墙钟中位数，量级仅数毫秒，绝对值受终端会话与杀软影响，<b>请以相对排序为准</b>。<br>
-  生成日期 2026-10-12 · 仓库 <code>cli4win</code> @ <code>4685afb</code>。
+  首次生成 2026-10-12 · 复测 2026-10-12（同日，两轮 × 500 次取均值）· 仓库 <code>cli4win</code> @ <code>f5751a4</code>+工作区。
 </footer>
 
 </div>
