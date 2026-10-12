@@ -1,5 +1,6 @@
 import std::io::path;
 import std::io;
+import std::core::string::conv;
 import std::os::process;
 import std::os::env;
 import cmd;
@@ -116,7 +117,9 @@ fn void print_env_xxx(DString* out, ZString* environ)
 		if (env.starts_with("BP_ENV_"))
 		{
 			String[] xs = env.split(tmem, "=");
-			if (xs.len > 0)
+			// Need at least "KEY=VALUE": a malformed entry without '=' splits
+			// into a single element, so reading xs[1] would be out of bounds.
+			if (xs.len > 1)
 			{
 				out.appendf(style(Ansi.ITALIC, " (%s)"), xs[1]);
 			}
@@ -140,6 +143,26 @@ fn void print_git(DString* out, Path cwd)
 	{
 		out.appendf(style(Ansi.RED, " <%d>"), changed_files);
 	}
+}
+
+// First UTF-8 codepoint of `s`, kept whole so a surrogate pair (e.g. an emoji)
+// is never split. Falls back to the first byte when the string is empty or the
+// sequence is invalid. Mirrors the Odin/Zig ports, which keep one Unicode
+// scalar value rather than the first UTF-16 code unit the old code used.
+fn String first_codepoint(String s)
+{
+	if (s.len == 0)
+	{
+		return s;
+	}
+
+	sz read = s.len < 4 ? s.len : 4;
+	if (catch conv::utf8_to_char32(&s[0], &read))
+	{
+		return s[:1];
+	}
+
+	return s[:read];
 }
 
 fn String short_view(Allocator allocator, String work_dir, bool use_short_name)
@@ -171,14 +194,13 @@ fn String short_view(Allocator allocator, String work_dir, bool use_short_name)
 		}
 		else
 		{
-			WString name = paths[i].to_wstring(tmem)!!;
 			if (use_short_name)
 			{
-				buf.append(string::from_utf16(tmem, name[:1])!!);
+				buf.append(first_codepoint(paths[i]));
 			}
 			else
 			{
-				buf.append(string::from_utf16(tmem, name[:name.len()])!!);
+				buf.append(paths[i]);
 			}
 
 			buf.append("/");
