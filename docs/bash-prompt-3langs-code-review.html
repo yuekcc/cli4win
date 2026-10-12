@@ -1,0 +1,568 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>bash_prompt 三实现代码剖析与语言对比 · C3 / Odin / Zig</title>
+<style>
+  :root{
+    --bg:#f5f6f8; --panel:#ffffff; --ink:#1e2430; --muted:#68707d;
+    --line:#e3e6ea; --c3:#c2410c; --c3b:#f97316; --odin:#1d4ed8; --odinb:#3b82f6;
+    --zig:#b45309; --zigb:#f59e0b; --good:#15803d; --bad:#b91c1c; --base:#9ca3af;
+    --accent:#0f766e;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+    font:15px/1.7 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Noto Sans SC","Microsoft YaHei",sans-serif;}
+  .wrap{max-width:1000px;margin:0 auto;padding:40px 24px 90px;}
+  header h1{font-size:27px;line-height:1.35;margin:0 0 8px;}
+  header .sub{color:var(--muted);font-size:13.5px;}
+  h2{font-size:21px;margin:48px 0 12px;padding-bottom:8px;border-bottom:2px solid var(--line);}
+  h3{font-size:16.5px;margin:28px 0 8px;}
+  h4{font-size:14.5px;margin:18px 0 6px;color:#374151;}
+  p{margin:10px 0;}
+  code{font-family:"Cascadia Code",Consolas,"SF Mono",Menlo,monospace;font-size:12.5px;
+    background:#eef1f4;border:1px solid #e2e6ea;border-radius:4px;padding:1px 5px;}
+  pre{background:#0f172a;color:#e2e8f0;border-radius:10px;padding:13px 15px;overflow:auto;margin:8px 0;
+    font-family:"Cascadia Code",Consolas,"SF Mono",Menlo,monospace;font-size:12.5px;line-height:1.55;}
+  pre code{background:none;border:none;color:inherit;padding:0;font-size:12.5px;}
+  .lang{font-size:11.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;
+    margin:14px 0 -4px;display:flex;align-items:center;gap:7px;}
+  .lang::before{content:"";width:9px;height:9px;border-radius:3px;background:var(--muted);display:inline-block;}
+  .lang.c3{color:var(--c3)} .lang.c3::before{background:var(--c3b)}
+  .lang.odin{color:var(--odin)} .lang.odin::before{background:var(--odinb)}
+  .lang.zig{color:var(--zig)} .lang.zig::before{background:var(--zigb)}
+  table{border-collapse:collapse;width:100%;margin:14px 0;background:var(--panel);
+    border:1px solid var(--line);border-radius:10px;overflow:hidden;font-size:13.5px;}
+  th,td{padding:8px 11px;text-align:left;border-bottom:1px solid var(--line);vertical-align:top;}
+  th{background:#f0f2f5;font-weight:600;color:#374151;font-size:12.5px;}
+  td.num,th.num{text-align:right;font-variant-numeric:tabular-nums;
+    font-family:"Cascadia Code",Consolas,monospace;}
+  tr:last-child td{border-bottom:none;}
+  td.c3col{color:var(--c3)} td.odincol{color:var(--odin)} td.zigcol{color:var(--zig)}
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px 20px;margin:16px 0;}
+  .callout{border-left:4px solid var(--accent);background:#ecfdf5;padding:12px 16px;border-radius:0 8px 8px 0;margin:16px 0;}
+  .callout.warn{border-left-color:#d97706;background:#fffbeb;}
+  .callout.note{border-left-color:#6366f1;background:#eef2ff;}
+  .callout.bad{border-left-color:#dc2626;background:#fef2f2;}
+  .callout p:first-child,.callout ul:first-child{margin-top:0}
+  .callout p:last-child,.callout ul:last-child{margin-bottom:0}
+  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:13px;margin:16px 0;}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px 16px;}
+  .card .k{font-size:11.5px;color:var(--muted);letter-spacing:.04em;text-transform:uppercase;}
+  .card .v{font-size:22px;font-weight:700;margin-top:3px;}
+  .card .d{font-size:12.5px;color:var(--muted);margin-top:2px;}
+  .c3{color:var(--c3)} .odin{color:var(--odin)} .zig{color:var(--zig)}
+  .tag{display:inline-block;font-size:11.5px;padding:1px 8px;border-radius:999px;border:1px solid;}
+  .tag.win{color:var(--good);border-color:#86efac;background:#f0fdf4;}
+  .tag.lose{color:var(--bad);border-color:#fca5a5;background:#fef2f2;}
+  .star{color:#f59e0b;letter-spacing:1px;font-size:13px;font-family:monospace;}
+  .bars{margin:10px 0 4px;}
+  .row{display:grid;grid-template-columns:150px 1fr 74px;align-items:center;gap:10px;margin:5px 0;}
+  .row .lbl{font-size:12.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .track{background:#eceff3;border-radius:6px;height:19px;overflow:hidden;}
+  .fill{height:100%;border-radius:6px;min-width:2px;}
+  .fill.c3{background:var(--c3b)} .fill.odin{background:var(--odinb)} .fill.zig{background:var(--zigb)}
+  .fill.base{background:var(--base)}
+  .row .val{text-align:right;font-variant-numeric:tabular-nums;font-size:12.5px;
+    font-family:"Cascadia Code",Consolas,monospace;}
+  .small{font-size:12.5px;color:var(--muted);}
+  .cols{display:grid;grid-template-columns:1fr;gap:2px;}
+  @media(min-width:820px){ .cols.two{grid-template-columns:1fr 1fr;} }
+  footer{margin-top:64px;color:var(--muted);font-size:12.5px;border-top:1px solid var(--line);padding-top:16px;}
+  a{color:var(--accent);}
+  .toc{columns:2;font-size:13.5px;margin:6px 0 0;padding-left:18px;}
+  .toc a{text-decoration:none;}
+  .toc li{margin:3px 0;break-inside:avoid;}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <h1>同一份 <code>bash_prompt</code>，三种语言怎么写：<span class="c3">C3</span> / <span class="odin">Odin</span> / <span class="zig">Zig</span> 代码剖析</h1>
+  <div class="sub">逐特性对照源码 · 量化指标 · 语言评价与选型 · 仓库 <code>cli4win@ac2eb67</code> · 2026-10-12</div>
+</header>
+
+<div class="callout">
+  <strong>结论先行</strong>
+  <ul style="margin:6px 0 0">
+    <li>三份实现功能等价，我实测在同一目录下输出<b>逐字节一致</b>（同样的 ANSI 颜色、同样的 CRLF、同样的 <code>--init</code> 文本），只有可执行文件名不同。这是一个非常干净的对照样本。</li>
+    <li><b>代码量</b>：Odin 最短（纯代码 220 行）&lt; Zig（267）&lt; C3（293，含自写的 <code>cmd.c3</code>）。差距几乎全来自「分配器样板 + 错误处理样板」。</li>
+    <li><b>三种风格清晰可分</b>：C3 = 高层语法糖 + 隐式内存，代码短但行为藏得多；Odin = 隐式 <code>context.allocator</code> + 内置子进程，最平衡；Zig = 一切显式 + 最强 comptime，最可预测也最啰嗦。</li>
+    <li>这三份代码里我找到<b>三个值得注意的细节</b>：C3 的越界读 <code>xs[1]</code>、C3 取首字符会切断 UTF-16 代理对、以及 <code>build_odin.sh</code> 注释与参数不一致——见第 6 节。</li>
+  </ul>
+</div>
+
+<div class="panel">
+  <strong style="font-size:13.5px">目录</strong>
+  <ol class="toc">
+    <li><a href="#s1">研究对象与方法</a></li>
+    <li><a href="#s2">量化指标</a></li>
+    <li><a href="#s3">逐特性源码对照</a></li>
+    <li><a href="#s4">构建与产物</a></li>
+    <li><a href="#s5">三种语言的评价</a></li>
+    <li><a href="#s6">发现的三个细节/隐患</a></li>
+    <li><a href="#s7">综合评分与选型</a></li>
+  </ol>
+</div>
+
+<h2 id="s1">1. 研究对象与方法</h2>
+
+<p><code>bash_prompt</code> 是一个 <code>PROMPT_COMMAND</code>：bash 每次打印提示符前都会执行它，把输出注入终端。它做四件事，按顺序拼成<b>一行</b>：</p>
+<ol>
+  <li>打印当前目录（蓝色加粗），可选把中间路径压成首字母（<code>--short</code>），并把 <code>HOME</code>/<code>USERPROFILE</code> 折叠成 <code>~</code>；</li>
+  <li>如果 cwd 在 git 仓库里：<code> @ &lt;branch&gt;</code>（黄色），有改动时再跟 <code> &lt;N&gt;</code>（红色）；</li>
+  <li>可选打印所有 <code>BP_ENV_*</code> 环境变量值（斜体，<code>--venv</code>）；</li>
+  <li>支持 <code>--help</code> 与 <code>--init</code>（打印一段可追加到 <code>~/.bashrc</code> 的脚本）。</li>
+</ol>
+
+<p>仓库里三份实现：<code>bash_prompt.c3</code>（+ 自写的子进程模块 <code>cmd.c3</code>）、<code>bash_prompt.odin</code>、<code>bash_prompt.zig</code>。它们由同一作者、同一时期编写，交叉引用彼此（Zig/Odin 的注释里直接写「mirrors the C3 original」）。我用当前工具链分别编译并运行：</p>
+
+<table>
+  <tr><th>实现</th><th>编译器版本</th><th>构建命令</th><th class="num">产物大小</th></tr>
+  <tr><td class="c3col"><b>C3</b></td><td>c3c 0.8.4 (LLVM 22)</td><td><code>c3c compile -D RELEASE -O2 -g0</code></td><td class="num">110 KB</td></tr>
+  <tr><td class="odincol"><b>Odin</b></td><td>dev-2026-09-nightly</td><td><code>odin build -o:speed -disable-assert …</code></td><td class="num">447 KB</td></tr>
+  <tr><td class="zigcol"><b>Zig</b></td><td>0.17.0</td><td><code>zig build-exe -OReleaseFast</code></td><td class="num">874 KB</td></tr>
+</table>
+
+<div class="callout note">
+  <b>等价性验证：</b>三者在 <code>Z:/projects/cli4win</code> 下执行 <code>--short</code> 的输出都是
+  <code>&lt;CRLF&gt;\x1b[34m\x1b[1mZ:/p/cli4win\x1b[0m @ \x1b[33mmain\x1b[0m&lt;CRLF&gt;</code>，
+  <code>--init</code> 也只有内嵌可执行文件名不同。因此下面的对比是<b>同题作文</b>，不是各自实现不同需求。
+</div>
+
+<h2 id="s2">2. 量化指标</h2>
+
+<p>用 <code>grep</code>/<code>wc</code> 统计（C3 一栏把 <code>cmd.c3</code> 计入，因为它是为 C3 版补的子进程模块）：</p>
+
+<table>
+  <tr><th>指标</th><th class="num c3col">C3 (+cmd.c3)</th><th class="num odincol">Odin</th><th class="num zigcol">Zig</th></tr>
+  <tr><td>源码总行数（含注释/空行）</td><td class="num">348 <span class="small">(286+62)</span></td><td class="num">320</td><td class="num">388</td></tr>
+  <tr><td>纯代码行（去注释与空行）</td><td class="num">293 <span class="small">(241+52)</span></td><td class="num"><b>220</b></td><td class="num">267</td></tr>
+  <tr><td>注释行</td><td class="num">6</td><td class="num">60</td><td class="num">76</td></tr>
+  <tr><td>空行</td><td class="num">49</td><td class="num">40</td><td class="num">45</td></tr>
+  <tr><td><code>import</code> / 引用行</td><td class="num">9</td><td class="num">5</td><td class="num">2</td></tr>
+  <tr><td>函数 / 过程个数</td><td class="num">16</td><td class="num">13</td><td class="num">18</td></tr>
+  <tr><td>分配器标识符出现次数</td><td class="num">22 <span class="small">(tmem/mem)</span></td><td class="num"><b>7</b> <span class="small">(context.allocator)</span></td><td class="num">53 <span class="small">(allocator)</span></td></tr>
+  <tr><td>错误处理关键字次数</td><td class="num">12 <span class="small">(!/??/try)</span></td><td class="num">16</td><td class="num">52 <span class="small">(try/catch/orelse)</span></td></tr>
+  <tr><td>运行期依赖 DLL 数</td><td class="num">11</td><td class="num">3</td><td class="num"><b>2</b></td></tr>
+</table>
+
+<h4>纯代码行数（越短越紧凑）</h4>
+<div class="bars">
+  <div class="row"><span class="lbl c3">C3 (+cmd.c3)</span><span class="track"><span class="fill c3" style="width:100%"></span></span><span class="val">293</span></div>
+  <div class="row"><span class="lbl zig">Zig</span><span class="track"><span class="fill zig" style="width:91%"></span></span><span class="val">267</span></div>
+  <div class="row"><span class="lbl odin">Odin</span><span class="track"><span class="fill odin" style="width:75%"></span></span><span class="val">220</span></div>
+</div>
+
+<div class="callout">
+  <b>两条最直观的规律：</b>
+  <ul style="margin:6px 0 0">
+    <li><b>分配器噪音 = 代码长度差的主因。</b>C3 的 <code>tmem</code>/<code>mem</code> 和 Odin 的 <code>context.allocator</code> 都能「不显式传」；Zig 每次写集合都必须把 <code>allocator</code> 一路带下去，出现 53 次，是 Odin 的 7 倍多。</li>
+    <li><b>注释密度反过来。</b>C3 只有 6 行注释、几乎是「读代码猜意图」；Zig 有 76 行注释，很多在解释「为什么这样写、在线性语义上等价于 C3 的哪里」。这既是 Zig 冗长的原因，也是它更易被下一个人接手的原因。</li>
+  </ul>
+</div>
+
+<h2 id="s3">3. 逐特性源码对照</h2>
+<p>下面把同一个功能的三种写法并排放。为节省篇幅，只摘关键片段（去掉部分错误分支）。</p>
+
+<h3>3.1 程序入口与「拿到 argv / environ」</h3>
+<p>三者对「命令行参数和环境变量」的暴露方式截然不同：</p>
+
+<div class="lang c3">C3 — 自定义入口，environ 作为参数直接传入</div>
+<pre><code>fn void main() @export("_main") =&gt; unreachable();
+fn int _main(int argc, ZString* argv, ZString* environ) @export("main")
+{
+    CommandLineFlag flag;
+    flag.init(argv);            // argv 直接是指针
+    ...
+    print_env_xxx(&amp;buf, environ);   // environ 直接可用，无需系统调用
+}</code></pre>
+
+<div class="lang odin">Odin — 标准入口，参数从全局 os.args 取</div>
+<pre><code>main :: proc() {
+    flag := parse_flags(os.args)     // os.args 是全局切片
+    ...
+    environ, _ := os.environ(context.allocator)   // 需要时才取
+    print_env_xxx(&amp;out, environ)
+}</code></pre>
+
+<div class="lang zig">Zig 0.17 — 入口收一个 Init 结构（io + arena + args + environ_map）</div>
+<pre><code>pub fn main(init: std.process.Init) u8 {
+    return run(init) catch 1;
+}
+fn run(init: std.process.Init) !u8 {
+    const io = init.io;
+    const allocator = init.arena.allocator();
+    const args = try init.minimal.args.toSlice(allocator);
+    ...
+    init.environ_map.get(home_env)   // 环境变量是一个 Map
+}</code></pre>
+
+<p class="small">C3 让 <code>main</code> 直接拿到 <code>environ</code> 指针，最省事；Odin 保持了最传统的 <code>main + 全局 os.args</code>；Zig 0.17 把「运行时句柄」显式打包进 <code>Init</code>，类型安全、可测试，但对老 Zig 用户是新东西，也是迁移成本最高的地方。</p>
+
+<h3>3.2 命令行标志解析</h3>
+
+<div class="lang c3">C3 — 手写 if / else if 链</div>
+<pre><code>if (flag == "--short")        { self.use_short_name = true; continue; }
+else if (flag == "--venv")    { self.show_env_xxx   = true; continue; }
+else if (flag == "--init")    { self.show_init      = true; continue; }
+else if (flag == "--help" || flag == "-h") { self.show_help = true; continue; }</code></pre>
+
+<div class="lang odin">Odin — switch，未知标志落进默认分支</div>
+<pre><code>switch arg {
+case "--short":        flag.use_short_name = true
+case "--venv":         flag.show_env_xxx   = true
+case "--init":         flag.show_init      = true
+case "--help", "-h":   flag.show_help      = true
+case:                  // Unknown flags are ignored, same as the original.
+}</code></pre>
+
+<div class="lang zig">Zig — 表驱动 + inline for + @field 字段反射</div>
+<pre><code>const flag_specs = .{
+    .{ .name = "--short", .field = "use_short_name" },
+    .{ .name = "--venv",  .field = "show_env_xxx" },
+    // ...
+    .{ .name = "-h",      .field = "show_help" },
+};
+inline for (flag_specs) |spec| {
+    if (std.mem.eql(u8, arg, spec.name)) @field(flag, spec.field) = true;
+}</code></pre>
+
+<p>三者最难分伯仲的一段。Zig 用编译期表把「名字 → 字段」集中到一处，加一个 flag 只改一行、且比较在编译期展开为无循环的直线比较——表达力最强，但要懂 <code>inline for</code> 和 <code>@field</code>。Odin 的 <code>switch</code> 读起来最像伪代码。C3 的 if 链最直白但也最容易写错 <code>||</code>。</p>
+
+<h3>3.3 错误处理与「可选值」</h3>
+
+<div class="lang c3">C3 — Optional + fault，多种后缀糖</div>
+<pre><code>bool ready = repo.try_init(tmem, cwd) ?? false;          // 失败给默认值
+Path git_dir = target.append(tmem, ".git")!;             // ! 传播 fault
+if (try home_env = env::get_home_dir(tmem)) { ... }      // try 捕获并绑定
+String content = (String)file::load_temp(head_file) ?? "";   // ?? 兜底
+Path exe_name = path::new(tmem, flag.exe_name)!!;        // !! 失败即崩</code></pre>
+
+<div class="lang odin">Odin — 多返回值 (值, 错误)，显式判断；也有 or_ 短语法</div>
+<pre><code>content, read_err := os.read_entire_file_from_path(head_path, context.allocator)
+if read_err != nil { return "" }                 // 显式检查
+
+git_dir := filepath.join([]string{current, ".git"}) or_break   // or_ 提前返回
+
+cwd, cwd_err := os.get_working_directory(context.allocator)
+if cwd_err != nil { return }</code></pre>
+
+<div class="lang zig">Zig — error union + try / catch / orelse</div>
+<pre><code>const cwd = std.process.currentPathAlloc(io, allocator) catch return 0;
+const root = (try findGitRoot(io, allocator, cwd)) orelse return;
+const content = std.Io.Dir.cwd().readFileAlloc(io, head_path, allocator,
+    .limited(4096)) catch return "";
+const result = std.process.run(allocator, io, .{ .argv = argv.items }) catch return "";</code></pre>
+
+<div class="callout">
+  <b>风格差异：</b>C3 用一套「Optional + fault + 后缀运算符」把错误处理压到极短，代价是 <code>!</code>/<code>!!</code>/<code>??</code>/<code>try</code> 四种写法语义精细、需要记。<b>尤其 <code>!!</code> 会在失败时直接崩溃</b>（<code>path::new(...)!!</code>、<code>to_wstring(...)!!</code>），而 Odin / Zig 全程优雅降级。Zig 只有 error union 一个概念，最统一，但一句「可能失败的调用」往往要拖一条 <code>catch ...</code>，是它 <code>try/catch</code> 出现 52 次的原因。Odin 介于两者之间，<code>or_break</code> 这类短语法好用，但多返回值仍需手判 <code>!= nil</code>。
+</div>
+
+<h3>3.4 内存管理（差异最大）</h3>
+
+<div class="lang c3">C3 — 语言内置临时池 tmem/mem，@pool 作用域结束自动回收</div>
+<pre><code>@pool()
+{
+    Path target = cwd;
+    for (;;) {
+        Path git_dir = target.append(tmem, ".git")!;   // tmem 可直接用，无需传参
+        // ...
+    }
+};
+DString buf = dstring::new(tmem);      // 绑到临时池
+String[] xs = env.split(tmem, "=");
+return buf.copy_str(allocator);        // 需要长命时才拷出去</code></pre>
+
+<div class="lang odin">Odin — context.allocator 隐式携带，集合多为显式 delete</div>
+<pre><code>out: strings.Builder
+strings.builder_init_none(&amp;out)        // 默认走 context.allocator，无需显式传
+strings.write_string(&amp;out, NEW_LINE)
+
+argv: [dynamic]string
+append(&amp;argv, "git", "-C", root, ...)
+defer delete(argv)                      // 用到默认分配器的集合要自己回收
+return strings.clone(strings.trim_space(string(stdout)))   // 克隆避免悬垂</code></pre>
+
+<div class="lang zig">Zig — 分配器一路显式传参，靠进程级 arena 兜底</div>
+<pre><code>const allocator = init.arena.allocator();   // 进程级 arena，退出即回收
+var out: std.ArrayList(u8) = .empty;
+try out.appendSlice(allocator, NEW_LINE);   // 每次调用都要传 allocator
+try printCwd(&amp;out, allocator, cwd, home, flag.use_short_name);
+try out.appendSlice(allocator, NEW_LINE);</code></pre>
+
+<p>C3 用「隐式 + 池生命周期」换最短的代码；Odin 把分配器藏进 <code>context</code>，样板同样少，但需要显式 <code>delete</code> 时逃不掉；Zig 把所有权完全摊在明面上——最啰嗦，却是唯一能让读者一眼看出「这块内存在哪分配、活多久」的写法。</p>
+
+<h3>3.5 字符串操作</h3>
+
+<div class="lang c3">C3 — String 是带方法的值类型，可链式</div>
+<pre><code>content.treplace("ref: refs/heads/", "").trim().copy(allocator)
+if (home.len &gt; 0 &amp;&amp; work_dir.starts_with(home)) { ... }
+String[] paths = work_dir.split(tmem, "/");</code></pre>
+
+<div class="lang odin">Odin — 自由函数式 strings.*</div>
+<pre><code>value, _ := strings.replace_all(string(content), "ref: refs/heads/", "")
+return strings.trim_space(value)
+if strings.has_prefix(entry, "BP_ENV_") { ... }
+paths := strings.split(dir, "/", context.allocator)</code></pre>
+
+<div class="lang zig">Zig — 裸切片，全部 std.mem.*</div>
+<pre><code>var value = std.mem.trim(u8, content, " \t\r\n");
+if (std.mem.startsWith(u8, value, prefix)) value = value[prefix.len..];
+return std.mem.count(u8, output, "\n") + 1;</code></pre>
+
+<p>可读性排序：C3 &gt; Odin &gt; Zig。Zig 里 <code>std.mem.trim(u8, ...)</code> 这种「类型参数打头」的调用是纯 C 风格，信息密度高但读起来最不像自然语言。</p>
+
+<h3>3.6 路径处理</h3>
+
+<div class="lang c3">C3 — std::io::path，高层且语义完整</div>
+<pre><code>if (try cwd = path::cwd(tmem)) { ... }
+Path target = cwd;
+Path git_dir = target.append(tmem, ".git")!;
+if (path::exists(git_dir)) { self.root = path::new(self.allocator, git_dir.parent())!; }
+Path exe_name = path::new(tmem, flag.exe_name)!!;   // .basename() 直接可用</code></pre>
+
+<div class="lang odin">Odin — filepath.* 与 os.* 组合</div>
+<pre><code>cwd, cwd_err := os.get_working_directory(context.allocator)
+git_dir := filepath.join([]string{current, ".git"})
+if os.exists(git_dir) { ... }
+parent := filepath.dir(current)
+filepath.base(flag.exe_name)</code></pre>
+
+<div class="lang zig">Zig — std.fs.path 只有切分，存在性要自己 access</div>
+<pre><code>const cwd = std.process.currentPathAlloc(io, allocator) catch return 0;
+const git_dir = try std.fs.path.join(allocator, &amp;.{ current, ".git" });
+if (pathExists(io, git_dir)) return current;
+current = std.fs.path.dirname(current) orelse return null;
+// pathExists 内部：std.Io.Dir.cwd().access(io, path, .{}) catch return false;</code></pre>
+
+<p>这一项梯度明显：C3 的 <code>std::io::path</code> 把 <code>cwd/exists/parent/basename/append</code> 都当成 <code>Path</code> 的方法，最省心；Odin 拆成 <code>filepath</code> + <code>os</code> 两个模块，够用；Zig 只给纯字符串切分，判断存在必须落到 <code>Dir.access</code>——本仓库在别的工具里甚至为此手写了上百行 Windows 路径规范化（见 <code>win.zig</code>）。</p>
+
+<h3>3.7 运行子进程（最能体现标准库差异）</h3>
+
+<div class="lang c3">C3 — std 只有底层 spawn/read/join，仓库自写 cmd.c3（52 行）</div>
+<pre><code>Process process = process::spawn(
+    command_line, STDERR_TO_STDOUT | INHERIT_ENV | NO_WINDOW)!;
+defer (void)process.destroy();
+close_stdin(&amp;process);          // 手工关 stdin，否则子进程可能一直等输入
+while (true) {
+    char[8192] buf;
+    sz len = process.read_stdout(&amp;buf, buf.len) ?? -1;
+    if (len &lt;= 0) break;
+    result.append_bytes(buf[:len]);
+}
+int exit_code = process.join()!;</code></pre>
+
+<div class="lang odin">Odin — 一行 process_exec 拿全 stdout/stderr</div>
+<pre><code>_, stdout, stderr, err := os.process_exec(
+    {command = argv[:]},
+    context.allocator,
+)
+if err != nil { return "" }
+return strings.clone(strings.trim_space(string(stdout)))</code></pre>
+
+<div class="lang zig">Zig — 一行 process.run</div>
+<pre><code>const result = std.process.run(allocator, io, .{ .argv = argv.items }) catch return "";
+return std.mem.trim(u8, result.stdout, " \t\r\n");</code></pre>
+
+<div class="callout note">
+  <b>这是 C3 标准库唯一明显落后的地方。</b>「捕获子进程输出」这种日常需求，Odin 和 Zig 都内置成一行；C3 只有裸的 <code>spawn/read_stdout/join</code>，逼得仓库额外维护一个 <code>cmd.c3</code>，还要手动关 stdin 和句柄。这也是 C3 版代码量居首的直接原因之一。
+</div>
+
+<h3>3.8 换行 / 跨平台文本模式（一个很妙的对照点）</h3>
+<p>同一个「Windows 要 CRLF、Linux 要 LF」的问题，三种语言给了三条完全不同的路：</p>
+
+<div class="lang c3">C3 — 常量只写 \n，靠 CRT 文本模式在运行时加宽</div>
+<pre><code>// On Windows the CRT is in text mode and widens every '\n' to "\r\n" on write,
+// so the constant stays a single '\n' (a literal "\r\n" would be doubled).
+const NEW_LINE = "\n";</code></pre>
+
+<div class="lang odin">Odin — 用 when 在编译期二选一</div>
+<pre><code>NEW_LINE :: "\r\n" when ODIN_OS == .Windows else "\n"
+HOME_ENV :: "USERPROFILE" when ODIN_OS == .Windows else "HOME"</code></pre>
+
+<div class="lang zig">Zig — comptime 函数在编译期逐字节展开，运行时零开销</div>
+<pre><code>fn textMode(comptime input: []const u8) []const u8 {
+    if (builtin.target.os.tag != .windows) return input;
+    comptime {
+        var buf: [input.len * 2]u8 = undefined;
+        for (input) |byte| { /* '\n' -&gt; "\r\n" */ }
+        const frozen: [len]u8 = buf[0..len].*;
+        return &amp;frozen;
+    }
+}
+const NEW_LINE = textMode("\n");</code></pre>
+
+<p>C3 的方案最「省事」也最<strong>隐式</strong>：代码里看不到 CRLF 从哪来，它藏在 CRT 的文本模式里——一旦换链接方式（例如用 <code>zig cc</code> 或 <code>nostdlib</code>）就可能失效。Odin 的 <code>when</code> 最直白。Zig 的 <code>textMode</code> 把「加宽」也做成编译期常量，既显式又零运行时成本，是三份里工程上最讲究的写法，但需要 <code>comptime</code> 心智。</p>
+
+<h3>3.9 Unicode：路径首字母压缩</h3>
+<p><code>--short</code> 要把每段路径压成首字符。三种写法暴露了对 Unicode 的不同处理深度：</p>
+
+<div class="lang c3">C3 — 先转 UTF-16，再取第一个 code unit</div>
+<pre><code>WString name = paths[i].to_wstring(tmem)!!;
+if (use_short_name) {
+    buf.append(string::from_utf16(tmem, name[:1])!!);   // 只取 UTF-16 第 1 个单元
+}</code></pre>
+
+<div class="lang odin">Odin — 按 UTF-8 解出一个完整标量值</div>
+<pre><code>first_rune :: proc(s: string) -&gt; string {
+    if len(s) == 0 { return s }
+    _, size := utf8.decode_rune_in_string(s)
+    if size &lt;= 0 { return s[:1] }
+    return s[:min(size, len(s))]
+}</code></pre>
+
+<div class="lang zig">Zig — 按 UTF-8 首字节推出序列长度</div>
+<pre><code>fn firstCodepoint(s: []const u8) []const u8 {
+    if (s.len == 0) return s;
+    const seq_len = std.unicode.utf8ByteSequenceLength(s[0]) catch return s[0..1];
+    return s[0..@min(@as(usize, seq_len), s.len)];
+}</code></pre>
+
+<p>Zig 和 Odin 都取「一个完整字符」，C3 取的是「第一个 UTF-16 单元」——对 BMP 内字符等价，但对 emoji 等需要代理对（surrogate pair）的字符会截断。Odin / Zig 的注释都明确写了「the original kept the first UTF-16 code unit; use the first whole UTF-8 scalar value instead」，是一次有意的修正（见第 6 节）。</p>
+
+<h2 id="s4">4. 构建与产物</h2>
+
+<div class="cols two">
+<div>
+<div class="lang c3">C3</div>
+<pre><code>c3c compile -D RELEASE -O2 -g0 \
+    -o dist/bash_prompt bash_prompt.c3 cmd.c3</code></pre>
+</div>
+<div>
+<div class="lang odin">Odin</div>
+<pre><code>odin build bash_prompt.odin -file \
+    -o:speed -disable-assert \
+    -no-bounds-check -no-type-assert \
+    -out:dist/bash_prompt.exe</code></pre>
+</div>
+<div>
+<div class="lang zig">Zig</div>
+<pre><code>zig build-exe -OReleaseFast \
+    -femit-bin=dist/bash_prompt.exe \
+    bash_prompt.zig</code></pre>
+</div>
+</div>
+
+<h4>运行期依赖的 DLL</h4>
+<table>
+  <tr><th>实现</th><th class="num">DLL 数</th><th>依赖</th></tr>
+  <tr><td class="zigcol">Zig</td><td class="num">2</td><td><code>KERNEL32.dll</code>, <code>ntdll.dll</code></td></tr>
+  <tr><td class="odincol">Odin</td><td class="num">3</td><td><code>ADVAPI32.dll</code>, <code>bcrypt.dll</code>, <code>KERNEL32.dll</code></td></tr>
+  <tr><td class="c3col">C3</td><td class="num">11</td><td>UCRT 转发 DLL ×7 + <code>VCRUNTIME140.dll</code> + <code>dbghelp.dll</code> + <code>SHLWAPI.dll</code> + <code>KERNEL32.dll</code></td></tr>
+</table>
+
+<div class="callout warn">
+  <b>体积与启动是「反向」的。</b>C3 产物最小（110 KB），却要拖 11 个 DLL（含 UCRT 和 <code>dbghelp</code>）；Zig 产物最大（874 KB），却只碰 <code>KERNEL32</code> + <code>ntdll</code>。对一个「每次回车都要跑一遍」的 <code>PROMPT_COMMAND</code> 来说，<b>启动延迟比体积重要得多</b>——实测 Zig 启动最快、Odin 次之、C3 最慢（详见同目录的 <code>c3-odin-zig-perf.html</code>）。换句话说，C3 的 <code>std::io::path</code> 等便利层是「用启动时间和 DLL 依赖换来的」。
+</div>
+
+<h2 id="s5">5. 三种语言的评价</h2>
+
+<h3><span class="c3">C3</span> — 最像「带便利库的系统脚本语言」</h3>
+<ul>
+  <li><b>强项：</b>高层标准库最全（<code>std::io::path</code>、<code>DString</code>、<code>String</code> 方法、<code>env::get_home_dir</code> 跨平台封装），配合隐式 <code>tmem/mem</code> 与 <code>@pool</code>，样板极少，业务逻辑密集时体验最顺。</li>
+  <li><b>强项：</b>产物体积最小，适合对分发体积敏感的场景。</li>
+  <li><b>弱项：</b>很多行为是<b>隐式</b>的——CRLF 靠 CRT 文本模式、临时内存靠池生命周期、<code>!!</code> 直接崩溃。读代码需要「脑内补全」运行时的默认行为，跨平台语义容易被链接方式改变。</li>
+  <li><b>弱项：</b>子进程这种基础能力反而要自写模块；本例还引入了 C3 独有的自定义入口 <code>_main</code> + 空 <code>main</code> 的 hack。</li>
+  <li><b>一句话：</b>写起来最舒服，读起来需要信任运行时；代码短是「用隐式换来的」。</li>
+</ul>
+
+<h3><span class="odin">Odin</span> — 本项目场景下的「最佳工程平衡」</h3>
+<ul>
+  <li><b>强项：</b>纯代码行数最少，却几乎没有 Zig 那种分配器/错误处理噪音——<code>context.allocator</code> 隐式可用是关键。</li>
+  <li><b>强项：</b>入口最传统（<code>main :: proc()</code> + 全局 <code>os.args</code>），<code>when</code> 条件编译直白，<code>os.process_exec</code> 一行解决子进程，上手门槛最低。</li>
+  <li><b>强项：</b>没有 GC 的隐式停顿，内存策略显式可控（需要时 <code>defer delete</code>），性能与体积都适中。</li>
+  <li><b>弱项：</b>标准库偏小，很多东西要手写；<code>strings.Builder</code> 要手动 <code>builder_init_none</code>，集合要手动回收；没有模块级常量分组，只能用 <code>ANSI :: Ansi{...}</code> 这种 struct 当命名空间，略显别扭。</li>
+  <li><b>一句话：</b>把 C3 的「隐式便利」用更小的语言面积实现，同时保留了显式内存控制。</li>
+</ul>
+
+<h3><span class="zig">Zig</span> — 最严谨、最可预测，也最啰嗦、最易变</h3>
+<ul>
+  <li><b>强项：</b><code>comptime</code> 表达力最强——<code>textMode</code> 编译期加宽换行、<code>flag_specs + @field</code> 表驱动解析，这些在另外两门语言里都做不到同等优雅。</li>
+  <li><b>强项：</b>一切所有权、错误路径、类型都显式，<b>可预测性与可审查性最高</b>；产物只依赖 2 个 DLL，启动最快。</li>
+  <li><b>强项：</b>注释最详尽，把「为什么这样写」当成代码的一部分。</li>
+  <li><b>弱项：</b>记忆负担最重：每题都要传 <code>allocator</code>（本例 53 次），几乎每个可能失败的调用都要 <code>catch</code>（本例 <code>try/catch/orelse</code> 52 次），代码最长。</li>
+  <li><b>弱项：</b>字符串无方法、<code>std.mem.*</code> 风格偏 C；0.17 的 <code>std.Io</code> / <code>std.process.Init</code> / 无管理 <code>ArrayList</code> / <code>environ_map</code> 都是新 API，<b>版本迁移成本最高</b>。</li>
+  <li><b>一句话：</b>用最多的字符换最强的确定性和最强元编程能力。</li>
+</ul>
+
+<h2 id="s6">6. 阅读中发现的三处细节</h2>
+
+<div class="callout bad">
+  <b>① C3 的 <code>print_env_xxx</code> 存在越界读风险。</b>
+  <pre style="margin:8px 0 4px"><code>String[] xs = env.split(tmem, "=");
+if (xs.len &gt; 0) {
+    out.appendf(style(Ansi.ITALIC, " (%s)"), xs[1]);   // len==1 时越界
+}</code></pre>
+  当某个 <code>BP_ENV_*</code> 变量值里没有 <code>=</code>（畸形环境项）时 <code>split</code> 只返回 1 个元素，<code>xs[1]</code> 越界。Odin 版显式补了 <code>if len(parts) &lt; 2 { continue }</code>，Zig 版改为「在第一个 <code>=</code> 处截断」。实践中环境项几乎总有 <code>=</code>，所以不会触发，但两门新实现都在注释里承认这是有意加固。
+</div>
+
+<div class="callout warn">
+  <b>② C3 取路径首字母会切断 UTF-16 代理对。</b> <code>name[:1]</code> 取的是第一个 UTF-16 code unit。对 emoji、部分 CJK 扩展字等需要代理对的字符，会留下半个字符、渲染成乱码。Odin / Zig 都改成了「取第一个完整 UTF-8 标量值」，是一处正确的行为修正。
+</div>
+
+<div class="callout note">
+  <b>③ <code>build_odin.sh</code> 的注释与参数不一致。</b> 注释写着「<code>-o:size</code> … <code>-o:size</code> is smaller than <code>-o:speed</code>」，但实际 <code>FLAGS</code> 用的是 <code>-o:speed</code>。我两种都编了：<code>-o:size</code> = 406 KB，<code>-o:speed</code> = 447 KB——注释是对的，脚本大概改过但没同步注释。属于小疏漏，但正好说明「注释也会和代码一起漂移」。
+</div>
+
+<h2 id="s7">7. 综合评分与选型</h2>
+
+<p class="small">下表是我基于本例代码的主观评分（★ 越多越好），仅代表个人判断：</p>
+<table>
+  <tr><th>维度</th><th class="c3col">C3</th><th class="odincol">Odin</th><th class="zigcol">Zig</th></tr>
+  <tr><td>代码简洁 / 表达力</td><td><span class="star">★★★★</span></td><td><span class="star">★★★★★</span></td><td><span class="star">★★</span></td></tr>
+  <tr><td>显式性 / 可预测性</td><td><span class="star">★★</span></td><td><span class="star">★★★</span></td><td><span class="star">★★★★★</span></td></tr>
+  <tr><td>标准库便利层</td><td><span class="star">★★★★★</span></td><td><span class="star">★★★</span></td><td><span class="star">★★</span></td></tr>
+  <tr><td>元编程能力</td><td><span class="star">★★★</span></td><td><span class="star">★★★</span></td><td><span class="star">★★★★★</span></td></tr>
+  <tr><td>上手 / 学习曲线</td><td><span class="star">★★★</span></td><td><span class="star">★★★★</span></td><td><span class="star">★★</span></td></tr>
+  <tr><td>启动性能（PROMPT 场景关键）</td><td><span class="star">★★</span></td><td><span class="star">★★★</span></td><td><span class="star">★★★★★</span></td></tr>
+  <tr><td>产物体积</td><td><span class="star">★★★★★</span></td><td><span class="star">★★★</span></td><td><span class="star">★★</span></td></tr>
+  <tr><td>生态 / API 稳定性</td><td><span class="star">★★★★</span></td><td><span class="star">★★★</span></td><td><span class="star">★★</span></td></tr>
+</table>
+
+<div class="callout">
+  <strong>我的评价与选型建议：</strong>
+  <ul style="margin:6px 0 0">
+    <li><b>就 <code>bash_prompt</code> 这个具体工具而言，Odin 是三者里最合适的。</b>代码最短、子进程一行、内存策略可控、入口最传统，产物体积和启动速度都处于可接受的中位——没有明显短板。</li>
+    <li><b>若把「每次回车的启动延迟」当成硬指标，选 Zig。</b>它的启动几乎贴着 Windows 的进程创建地板，且 <code>comptime</code> 写法最严谨；代价是接受最长的样板、最陡的曲线，以及 0.17 这种还在演进的 API。</li>
+    <li><b>若团队更看重开发速度和现成高层库（路径/JSON/动态字符串），C3 体验最好、体积最小</b>；但要接受它的隐式行为（CRLF 依赖 CRT、<code>!!</code> 崩溃、临时池语义）和偏慢的启动，并对上表①那样的边界情况保持警觉。</li>
+    <li><b>三份实现放在一起，本身就是一份很好的语言教材：</b>同一个需求，C3 用「隐式 + 便利库」把它写短，Odin 用「隐式分配器 + 小而全的 std」取得平衡，Zig 用「全显式 + 最强元编程」把它写长但写死。没有绝对赢家，只有权衡是否匹配你的场景。</li>
+  </ul>
+</div>
+
+<h2>附录：复现命令</h2>
+<pre><code># 1) 三种实现分别编译
+c3c compile -D RELEASE -O2 -g0 -o tmp/bp_c3 bash_prompt.c3 cmd.c3
+odin build bash_prompt.odin -file -o:speed -disable-assert \
+    -no-bounds-check -no-type-assert -out:tmp/bp_odin.exe
+zig build-exe -OReleaseFast -femit-bin=tmp/bp_zig.exe bash_prompt.zig
+
+# 2) 验证输出一致（应逐字节相同，仅 --init 里的文件名不同）
+tmp/bp_c3 --short | cat -v
+tmp/bp_odin.exe --short | cat -v
+tmp/bp_zig.exe --short | cat -v
+
+# 3) 代码量 / 标识符统计
+for f in bash_prompt.c3 cmd.c3 bash_prompt.odin bash_prompt.zig; do
+  echo "$f total=$(wc -l &lt; "$f") \
+code=$(grep -vE '^\s*(//|/\*|\*|$)' "$f" | grep -vE '^\s*$' | wc -l)"; done
+grep -ohE '\b(tmem|mem)\b' bash_prompt.c3 cmd.c3 | wc -l   # C3 分配器
+grep -ohE 'context\.allocator' bash_prompt.odin | wc -l    # Odin
+grep -ohE '\ballocator\b' bash_prompt.zig | wc -l          # Zig
+
+# 4) 依赖 DLL（解释启动差异）
+objdump -p tmp/bp_c3    | grep -i "DLL Name"
+objdump -p tmp/bp_odin.exe | grep -i "DLL Name"
+objdump -p tmp/bp_zig.exe  | grep -i "DLL Name"</code></pre>
+
+<footer>
+  环境：Windows 11 · Intel Core i7-12650H · C3 0.8.4 · Odin dev-2026-09-nightly (a2fb372) · Zig 0.17.0。<br>
+  本文聚焦<b>代码与语言</b>对比；启动性能与子进程创建标志的实测见同目录 <code>docs/c3-odin-zig-perf.html</code>，C3 与 Zig 的更长篇对照见 <code>docs/c3-vs-zig.md</code>。<br>
+  生成日期 2026-10-12 · 仓库 <code>cli4win</code> @ <code>ac2eb67</code>。
+</footer>
+
+</div>
+</body>
+</html>
