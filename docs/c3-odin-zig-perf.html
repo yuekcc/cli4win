@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>bash_prompt 三语言实现对比 · C3 / Odin / Zig</title>
+<style>
+  :root{
+    --bg:#f6f7f9; --panel:#ffffff; --ink:#1f2430; --muted:#6b7280;
+    --line:#e5e7eb; --c3:#c2410c; --c3b:#f97316; --odin:#1d4ed8; --odinb:#3b82f6;
+    --zig:#b45309; --zigb:#f59e0b; --base:#9ca3af; --good:#15803d; --bad:#b91c1c;
+    --accent:#0f766e;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+    font:15px/1.65 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Noto Sans SC","Microsoft YaHei",sans-serif;}
+  .wrap{max-width:980px;margin:0 auto;padding:40px 24px 80px;}
+  header h1{font-size:28px;line-height:1.3;margin:0 0 6px;}
+  header .sub{color:var(--muted);font-size:14px;}
+  h2{font-size:21px;margin:44px 0 12px;padding-bottom:8px;border-bottom:2px solid var(--line);}
+  h3{font-size:17px;margin:26px 0 8px;}
+  p{margin:10px 0;}
+  code{font-family:"Cascadia Code",Consolas,"SF Mono",Menlo,monospace;font-size:13px;
+    background:#eef1f4;border:1px solid #e2e6ea;border-radius:4px;padding:1px 5px;}
+  pre{background:#0f172a;color:#e2e8f0;border-radius:10px;padding:14px 16px;overflow:auto;
+    font-family:"Cascadia Code",Consolas,"SF Mono",Menlo,monospace;font-size:13px;line-height:1.55;}
+  pre code{background:none;border:none;color:inherit;padding:0;font-size:13px;}
+  table{border-collapse:collapse;width:100%;margin:14px 0;background:var(--panel);
+    border:1px solid var(--line);border-radius:10px;overflow:hidden;font-size:14px;}
+  th,td{padding:9px 12px;text-align:left;border-bottom:1px solid var(--line);}
+  th{background:#f0f2f5;font-weight:600;color:#374151;font-size:13px;}
+  td.num,th.num{text-align:right;font-variant-numeric:tabular-nums;
+    font-family:"Cascadia Code",Consolas,monospace;}
+  tr:last-child td{border-bottom:none;}
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:18px 20px;margin:16px 0;}
+  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:14px;margin:16px 0;}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px;}
+  .card .k{font-size:12px;color:var(--muted);letter-spacing:.04em;text-transform:uppercase;}
+  .card .v{font-size:24px;font-weight:700;margin-top:4px;}
+  .card .d{font-size:13px;color:var(--muted);margin-top:2px;}
+  .c3{color:var(--c3)} .odin{color:var(--odin)} .zig{color:var(--zig)}
+  .callout{border-left:4px solid var(--accent);background:#ecfdf5;padding:12px 16px;border-radius:0 8px 8px 0;margin:16px 0;}
+  .warn{border-left-color:#d97706;background:#fffbeb;}
+  .note{border-left-color:#6366f1;background:#eef2ff;}
+  .bars{margin:8px 0 4px;}
+  .row{display:grid;grid-template-columns:170px 1fr 92px;align-items:center;gap:10px;margin:5px 0;}
+  .row .lbl{font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .track{background:#eceff3;border-radius:6px;height:20px;position:relative;overflow:hidden;}
+  .fill{height:100%;border-radius:6px;min-width:2px;}
+  .row .val{text-align:right;font-variant-numeric:tabular-nums;font-size:13px;
+    font-family:"Cascadia Code",Consolas,monospace;}
+  .fill.base{background:var(--base)} .fill.c3{background:var(--c3b)}
+  .fill.odin{background:var(--odinb)} .fill.zig{background:var(--zigb)}
+  .legend{display:flex;gap:16px;font-size:13px;color:var(--muted);margin:10px 0 0;flex-wrap:wrap;}
+  .legend i{display:inline-block;width:11px;height:11px;border-radius:3px;margin-right:5px;vertical-align:middle;}
+  .tag{display:inline-block;font-size:12px;padding:1px 8px;border-radius:999px;border:1px solid;}
+  .tag.win{color:var(--good);border-color:#86efac;background:#f0fdf4;}
+  .tag.lose{color:var(--bad);border-color:#fca5a5;background:#fef2f2;}
+  footer{margin-top:60px;color:var(--muted);font-size:13px;border-top:1px solid var(--line);padding-top:16px;}
+  a{color:var(--accent);}
+  .small{font-size:13px;color:var(--muted);}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <h1>同一个 <code>bash_prompt</code>，三种语言：C3 / Odin / Zig 性能实测</h1>
+  <div class="sub">聚焦「进程启动」开销 · Windows 11 · i7-12650H · 2026-10-12 · 仓库 <code>cli4win@4685afb</code></div>
+</header>
+
+<div class="callout">
+  <strong>结论先行：</strong>
+  <ul style="margin:6px 0 0">
+    <li><b>纯启动</b>：<span class="zig">Zig</span> 最快，几乎贴着 Windows 的进程创建“地板价”；<span class="odin">Odin</span> 次之（比地板高约 <b>0.8&nbsp;ms</b>）；<span class="c3">C3</span> 最慢（比地板高约 <b>1.7&nbsp;ms</b>）。差距全部来自 <b>动态链接的 DLL 数量</b>。</li>
+    <li><b>完整提示符（会 spawn <code>git status</code>）</b>：<span class="odin">Odin</span> 反而最快——因为它的 <code>process_exec</code> 不给子进程加 <code>CREATE_NO_WINDOW</code>，而 C3 / Zig 都会加，在本环境下每个被启动的进程要多花约 <b>5–6&nbsp;ms</b>。</li>
+    <li>这三者<b>并不是</b>“语言本身跑得快慢”的胜负，而是<b>运行时与标准库默认行为</b>的胜负：谁链接的 DLL 少、谁给子进程传的创建标志便宜，谁就赢。</li>
+  </ul>
+</div>
+
+<h2>1. 测试对象</h2>
+<p>仓库里用三种语言实现了功能完全等价、输出<b>逐字节一致</b>的 <code>bash_prompt</code>（一个 <code>PROMPT_COMMAND</code>：打印当前目录、git 分支、改动文件数）。</p>
+
+<table>
+  <tr><th>实现</th><th>源码</th><th>构建方式</th><th class="num">产物大小</th></tr>
+  <tr><td class="c3"><b>C3</b> 0.8.4</td><td><code>bash_prompt.c3</code> + <code>cmd.c3</code></td><td><code>c3c compile -O2</code>（MSVC 目标）</td><td class="num">110 KB</td></tr>
+  <tr><td class="c3"><b>C3</b> 0.8.4</td><td>同上</td><td>编译到 obj → <code>zig cc -O3 -flto</code>（mingw）</td><td class="num">730 KB</td></tr>
+  <tr><td class="odin"><b>Odin</b> dev-2026-09</td><td><code>bash_prompt.odin</code></td><td><code>odin build -o:size</code></td><td class="num">406 KB</td></tr>
+  <tr><td class="zig"><b>Zig</b> 0.17.0</td><td><code>bash_prompt.zig</code></td><td><code>zig build-exe -OReleaseFast</code></td><td class="num">874 KB</td></tr>
+  <tr><td style="color:var(--muted)"><b>基线</b> no-op</td><td><code>int main(void){return 0;}</code></td><td><code>zig cc -O2</code></td><td class="num">218 KB</td></tr>
+</table>
+<p class="small">no-op 基线的作用：它代表「在 Windows 上启动一个迷你 C 程序」的固定成本，用它减掉后剩下的才是各语言运行时的净开销。</p>
+
+<h2>2. 测量方法</h2>
+<div class="panel">
+  <p style="margin-top:0">因为要测的是 <b>进程启动</b>，量级只有几毫秒，任何测量器自身的开销都会污染结果，所以写了一个原生小 harness：</p>
+  <ul>
+    <li>用 <code>CreateProcessW</code> 启动子程序，<code>WaitForSingleObject</code> 等它退出；</li>
+    <li>用 <code>QueryPerformanceCounter</code> 计整个「创建→退出」周期；</li>
+    <li>子进程 stdout/stderr 重定向到 <code>NUL</code>，避免写控制台干扰计时；</li>
+    <li>先 warmup 30 次，再采样 <b>500</b> 次，报告 <code>min / p50 / mean / p95</code>。</li>
+  </ul>
+  <p>另有 4 个场景：<code>--help</code>（启动即退出）、非 git 目录（只算 cwd）、<code>--short</code>、以及 git 仓库内（会额外 spawn <code>git status --porcelain</code>）。</p>
+</div>
+
+<div class="callout warn">
+  <strong>方法学陷阱：<code>CREATE_NO_WINDOW</code> 会凭空多花 ~6&nbsp;ms。</strong>
+  最初用 <code>CreateProcess(..., CREATE_NO_WINDOW)</code> 写 harness，量出来基线就有 ~9&nbsp;ms；换成 <code>flags=0</code> 后骤降到 ~2.9&nbsp;ms（与 Python <code>subprocess</code> 互相印证）。四组对照（同一 no-op 子进程，p50）：
+  <table style="margin-top:10px">
+    <tr><th>CreateProcess 调用</th><th class="num">p50 (ms)</th></tr>
+    <tr><td><code>CreateProcessA</code>, flags=0</td><td class="num">2.94</td></tr>
+    <tr><td><code>CreateProcessA</code>, <b>CREATE_NO_WINDOW</b></td><td class="num" style="color:var(--bad)">9.13</td></tr>
+    <tr><td><code>CreateProcessA</code>, NO_WINDOW + 句柄重定向</td><td class="num" style="color:var(--bad)">9.22</td></tr>
+    <tr><td><code>CreateProcessW</code>, flags=0 + 句柄重定向</td><td class="num">2.92</td></tr>
+  </table>
+  这个代价在本机可复现（连跑多轮稳定），但<b>大概率与具体终端/会话环境有关</b>，换机器建议自行复测。它恰好是第 4 节解释 Odin 为何反超的关键。
+</div>
+
+<h2>3. 启动性能（核心结果）</h2>
+<p>表中为 <b>p50 中位数</b>，越小越好。前三列都几乎不做事，最能代表「启动 + 运行时初始化」的净开销。</p>
+
+<table>
+  <tr>
+    <th>程序</th><th class="num">--help</th><th class="num">非 git 目录</th><th class="num">--short</th>
+    <th class="num">启动均值</th><th class="num">相对地板</th>
+  </tr>
+  <tr><td style="color:var(--muted)">no-op 基线（地板）</td><td class="num">2.933</td><td class="num">2.874</td><td class="num">2.925</td><td class="num">2.911</td><td class="num">—</td></tr>
+  <tr><td class="zig"><b>Zig</b></td><td class="num">2.612</td><td class="num">3.068</td><td class="num">2.864</td><td class="num"><b>2.848</b></td><td class="num" style="color:var(--good)">≈ 0.00</td></tr>
+  <tr><td class="odin"><b>Odin</b></td><td class="num">3.590</td><td class="num">3.885</td><td class="num">3.753</td><td class="num"><b>3.743</b></td><td class="num" style="color:var(--bad)">+0.83</td></tr>
+  <tr><td class="c3"><b>C3</b> (msvc)</td><td class="num">4.372</td><td class="num">4.629</td><td class="num">4.683</td><td class="num"><b>4.561</b></td><td class="num" style="color:var(--bad)">+1.65</td></tr>
+  <tr><td class="c3"><b>C3</b> (mingw)</td><td class="num">4.583</td><td class="num">4.691</td><td class="num">4.670</td><td class="num"><b>4.648</b></td><td class="num" style="color:var(--bad)">+1.74</td></tr>
+</table>
+
+<div class="bars">
+  <div class="row"><span class="lbl" style="color:var(--muted)">no-op 基线</span><span class="track"><span class="fill base" style="width:58%"></span></span><span class="val">2.911</span></div>
+  <div class="row"><span class="lbl zig">Zig</span><span class="track"><span class="fill zig" style="width:57%"></span></span><span class="val">2.848</span></div>
+  <div class="row"><span class="lbl odin">Odin</span><span class="track"><span class="fill odin" style="width:75%"></span></span><span class="val">3.743</span></div>
+  <div class="row"><span class="lbl c3">C3 (msvc)</span><span class="track"><span class="fill c3" style="width:91%"></span></span><span class="val">4.561</span></div>
+  <div class="row"><span class="lbl c3">C3 (mingw)</span><span class="track"><span class="fill c3" style="width:93%"></span></span><span class="val">4.648</span></div>
+  <div class="legend"><span><i class="base" style="background:var(--base)"></i>地板</span><span><i style="background:var(--zigb)"></i>Zig</span><span><i style="background:var(--odinb)"></i>Odin</span><span><i style="background:var(--c3b)"></i>C3</span><span>横轴 0–5 ms</span></div>
+</div>
+
+<div class="callout note">
+  <strong>一个反直觉点：</b>C3 的 MSVC 产物只有 <b>110 KB</b>（比 no-op 还小），却是启动最慢的；Zig 的 <b>874 KB</b> 反而最快。<b>启动成本几乎与文件大小无关，取决于运行时要去 <code>LoadLibrary</code> 多少个 DLL。</b>
+</div>
+
+<h3>为什么？—— 看导入表</h3>
+<p>用 <code>objdump -p</code> 抓每个可执行文件的依赖 DLL：</p>
+<table>
+  <tr><th>程序</th><th class="num">DLL 数</th><th>依赖的 DLL</th></tr>
+  <tr><td class="zig">Zig</td><td class="num">2</td><td><code>KERNEL32.dll</code>, <code>ntdll.dll</code></td></tr>
+  <tr><td class="odin">Odin</td><td class="num">3</td><td><code>ADVAPI32.dll</code>, <code>bcrypt.dll</code>, <code>KERNEL32.dll</code></td></tr>
+  <tr><td class="c3">C3 (mingw)</td><td class="num">10</td><td>UCRT 转发 DLL ×7 + <code>dbghelp.dll</code> + <code>SHLWAPI.dll</code> + <code>KERNEL32.dll</code></td></tr>
+  <tr><td class="c3">C3 (msvc)</td><td class="num">11</td><td>UCRT ×7 + <code>VCRUNTIME140.dll</code> + <code>dbghelp.dll</code> + <code>SHLWAPI.dll</code> + <code>KERNEL32.dll</code></td></tr>
+</table>
+<p>启动时间与 DLL 数量、尤其是重量级 DLL 高度相关：</p>
+<ul>
+  <li><b>Zig</b> 只碰 <code>KERNEL32</code> + <code>ntdll</code>，基本等于“地板”。</li>
+  <li><b>Odin</b> 多拖两个：<code>ADVAPI32</code>（注册表/令牌）和 <code>bcrypt</code>（加密），代价约 +0.8&nbsp;ms。</li>
+  <li><b>C3</b> 走完整 <b>UCRT</b>（7 个 <code>api-ms-win-crt-*</code> 转发 DLL）<b>外加 <code>dbghelp.dll</code></b>（用于调用栈/调试）——后者本身就会连带加载一批符号相关模块，是 +1.7&nbsp;ms 的主要来源。</li>
+</ul>
+<p class="small">值得注意的是：C3 换 mingw 后端、开 <code>-O3 -flto</code>、体积从 110&nbsp;KB 涨到 730&nbsp;KB，启动却<b>没变快</b>——再次印证瓶颈是运行时 DLL 而非代码生成质量。</p>
+
+<h2>4. 完整提示符：当它会去 spawn <code>git</code></h2>
+<p>真实使用时 <code>bash_prompt</code> 在 git 仓库里会执行 <code>git status --porcelain</code>。这一项由 <code>git.exe</code> 主导（单次约 25–30&nbsp;ms），语言自身差异被稀释，但排序<b>完全反转</b>。</p>
+
+<table>
+  <tr><th>程序</th><th class="num">git 仓库内 p50 (ms)</th><th class="num">其中 git 子进程开销*</th></tr>
+  <tr><td class="odin"><b>Odin</b></td><td class="num" style="color:var(--good)"><b>28.284</b></td><td class="num">≈ 24.5</td></tr>
+  <tr><td class="zig"><b>Zig</b></td><td class="num">32.741</td><td class="num">≈ 29.9</td></tr>
+  <tr><td class="c3"><b>C3</b> (mingw)</td><td class="num">34.439</td><td class="num">≈ 29.8</td></tr>
+  <tr><td class="c3"><b>C3</b> (msvc)</td><td class="num">34.705</td><td class="num">≈ 30.1</td></tr>
+</table>
+<p class="small">* = 该行 git 场景的 p50 减去本程序自身的启动均值（第 3 节），近似等于“启动一个 <code>git.exe</code>”的成本。</p>
+
+<div class="bars">
+  <div class="row"><span class="lbl" style="color:var(--muted)">no-op 基线</span><span class="track"><span class="fill base" style="width:8%"></span></span><span class="val">2.919</span></div>
+  <div class="row"><span class="lbl odin">Odin</span><span class="track"><span class="fill odin" style="width:79%"></span></span><span class="val">28.284</span></div>
+  <div class="row"><span class="lbl zig">Zig</span><span class="track"><span class="fill zig" style="width:91%"></span></span><span class="val">32.741</span></div>
+  <div class="row"><span class="lbl c3">C3 (mingw)</span><span class="track"><span class="fill c3" style="width:96%"></span></span><span class="val">34.439</span></div>
+  <div class="row"><span class="lbl c3">C3 (msvc)</span><span class="track"><span class="fill c3" style="width:96%"></span></span><span class="val">34.705</span></div>
+  <div class="legend"><span>横轴 0–36 ms（含 <code>git.exe</code>）</span></div>
+</div>
+<p>连跑三轮，Odin 领先约 5&nbsp;ms 的结果稳定复现（28.3 / 29.4 / 29.3 vs Zig 33.0 / 32.7 / 33.5）。原因不在业务代码，而在<b>三者启动子进程时传递的 <code>dwCreationFlags</code></b>：</p>
+
+<pre><code>// C3 · cmd.c3 —— 显式要求无窗口
+Process process = process::spawn(
+    command_line, STDERR_TO_STDOUT | INHERIT_ENV | NO_WINDOW)!;
+//   SpawnOptions.NO_WINDOW  ⇒  CreateProcess 时设置 CREATE_NO_WINDOW
+
+// Zig · std.process.run 的 RunOptions 默认值（lib/std/process.zig:495）
+create_no_window: bool = true,      // 默认开！bash_prompt.zig 未覆盖它
+
+// Odin · os.process_exec（core/os/process_windows.odin:512）—— 没有 NO_WINDOW
+win32.CREATE_UNICODE_ENVIRONMENT | win32.NORMAL_PRIORITY_CLASS,</code></pre>
+
+<div class="callout warn">
+  结合第 2 节的对照实验：<code>CREATE_NO_WINDOW</code> 在本环境下让每次进程创建多花约 <b>6&nbsp;ms</b>。C3 显式打开、Zig 默认打开、Odin 不打开——这正好解释了 git 场景里那 ~5&nbsp;ms 的差距。
+  <br><br>
+  <b>可操作结论：</b>在这个环境里，给 Zig 的 <code>std.process.run</code> 传 <code>.create_no_window = false</code>、给 C3 去掉 <code>NO_WINDOW</code>，就能把完整提示符追平甚至反超 Odin。也就是说，这里的胜负是<b>一个可调参数</b>，而非语言体质。
+</div>
+
+<h2>5. 代码与语言对比（同一功能，三种写法）</h2>
+
+<h3>5.1 代码量</h3>
+<table>
+  <tr><th>指标</th><th class="num c3">C3</th><th class="num odin">Odin</th><th class="num zig">Zig</th></tr>
+  <tr><td>源码总行数（含注释/空行）</td><td class="num">348 <span class="small">(286+62)</span></td><td class="num">320</td><td class="num">388</td></tr>
+  <tr><td>纯代码行数（去注释空行）</td><td class="num">293</td><td class="num">220</td><td class="num">267</td></tr>
+  <tr><td><code>import</code> 行数</td><td class="num">9</td><td class="num">5</td><td class="num">2</td></tr>
+  <tr><td>分配器标识符出现次数</td><td class="num">22 <span class="small">(tmem/mem)</span></td><td class="num">7</td><td class="num">53</td></tr>
+  <tr><td>错误处理关键字次数</td><td class="num">17</td><td class="num">17</td><td class="num">50</td></tr>
+</table>
+<p class="small">注意 C3 的 <code>tmem</code>/<code>mem</code> 与 Odin 的 <code>context.allocator</code> 都<b>可以省略传递</b>，所以出现次数少；Zig 必须逐个手动传 allocator，因此 <code>allocator</code> 出现 53 次、<code>try</code>/<code>catch</code> 出现 50 次——代码噪音主要来自这里。</p>
+
+<h3>5.2 入口与参数</h3>
+<pre><code>// C3 —— 自定义入口，显式拿到 environ
+fn int _main(int argc, ZString* argv, ZString* environ) @export("main")
+
+// Odin —— 标准入口，参数从全局 os.args 取
+main :: proc() {
+    flag := parse_flags(os.args)
+    ...
+}
+
+// Zig 0.17 —— 入口参数变成一个 Init 结构（io + arena + args + environ_map）
+pub fn main(init: std.process.Init) u8 {
+    return run(init) catch 1;
+}</code></pre>
+
+<h3>5.3 临时内存</h3>
+<pre><code>// C3 —— 语言内置临时内存池，作用域结束自动回收
+@pool() {
+    Path target = cwd;
+    for (;;) { Path git_dir = target.append(tmem, ".git")!; ... }
+}
+DString buf = dstring::new(tmem);
+
+// Odin —— 用 context 里隐式携带的分配器
+strings.builder_init_none(&amp;out)
+strings.write_string(&amp;out, NEW_LINE)
+
+// Zig —— 分配器必须一路显式传下去
+var out: std.ArrayList(u8) = .empty;
+try out.appendSlice(allocator, NEW_LINE);</code></pre>
+
+<h3>5.4 运行子进程（差异最直接）</h3>
+<pre><code>// C3 —— std 只给底层 spawn/read/join，仓库为此自写 cmd.c3（52 行）
+Process process = process::spawn(command_line, STDERR_TO_STDOUT | INHERIT_ENV | NO_WINDOW)!;
+defer (void)process.destroy();
+close_stdin(&amp;process);              // 手工关 stdin，否则子进程可能一直等输入
+while (true) { char[8192] buf; sz len = process.read_stdout(&amp;buf, buf.len) ?? -1; ... }
+
+// Odin —— 一行拿到完整 stdout
+_, stdout, stderr, err := os.process_exec(
+    {command = argv[:]}, context.allocator,
+)
+
+// Zig —— 同样一行
+const result = std.process.run(allocator, io, .{ .argv = argv.items }) catch return "";</code></pre>
+<p>C3 需要额外一个模块（<code>cmd.c3</code>）来补足标准库；Odin 与 Zig 都是开箱即用。</p>
+
+<h3>5.5 git 子命令的构造</h3>
+<pre><code>// C3 —— 用 array::concat 拼接固定前缀
+String[] final = array::concat(tmem,
+    (String[]){"git","-C",self.root,"--no-optional-locks","--no-pager"}, command_line);
+
+// Odin —— 动态数组 append
+argv: [dynamic]string
+append(&amp;argv, "git", "-C", root, "--no-optional-locks", "--no-pager")
+
+// Zig —— 同样是动态数组
+var argv: std.ArrayList([]const u8) = .empty;
+try argv.appendSlice(allocator, &amp;.{ "git", "-C", root, "--no-optional-locks", "--no-pager" });</code></pre>
+
+<h3>5.6 编译期技巧</h3>
+<pre><code>// C3 —— macro，接近文本替换
+macro String style(String $style, String $str) { return $style +++ $str +++ Ansi.RESET; }
+
+// Odin —— 用 when 在编译期选常量
+NEW_LINE :: "\r\n" when ODIN_OS == .Windows else "\n"
+
+// Zig —— comptime 函数 + inline for + 字段反射
+const NEW_LINE = textMode("\n");                 // 编译期把 \n 展开成 \r\n
+inline for (flag_specs) |spec| {                 // 表驱动，比较在编译期展开
+    if (std.mem.eql(u8, arg, spec.name)) @field(flag, spec.field) = true;
+}</code></pre>
+<p>三者都能做到“零运行时开销的跨平台常量”，Zig 的 <code>comptime</code> 表达力最强但也最陡；C3 的 <code>macro</code> 最像宏；Odin 用 <code>when</code> 做条件编译最直观。</p>
+
+<h2>6. 综合结论</h2>
+<table>
+  <tr><th>维度</th><th class="c3">C3</th><th class="odin">Odin</th><th class="zig">Zig</th></tr>
+  <tr><td><b>启动</b>（净开销）</td><td>最慢，+1.7 ms<br><span class="small">UCRT + dbghelp</span></td><td>中等，+0.8 ms<br><span class="small">ADVAPI32 + bcrypt</span></td><td><span class="tag win">最快</span> ≈ 地板<br><span class="small">仅 KERNEL32 + ntdll</span></td></tr>
+  <tr><td><b>完整提示符</b>（含 git）</td><td>~34.5 ms</td><td><span class="tag win">最快 ~28.3 ms</span></td><td>~32.7 ms</td></tr>
+  <tr><td><b>二进制体积</b></td><td><span class="tag win">最小 110 KB</span></td><td>406 KB</td><td>最大 874 KB</td></tr>
+  <tr><td>子进程 API</td><td>需自写 <code>cmd.c3</code></td><td>一行 <code>process_exec</code></td><td>一行 <code>process.run</code></td></tr>
+  <tr><td>内存/错误样板</td><td>隐式分配器，噪音低</td><td><code>context.allocator</code>，噪音最低</td><td>显式传参，噪音最高</td></tr>
+  <tr><td>代码量（纯代码行）</td><td>293</td><td><span class="tag win">220</span></td><td>267</td></tr>
+</table>
+
+<div class="callout">
+  <strong>一句话总结：</strong>在同一台机器、同一份逻辑下，<b>Zig 启动最快（≈ 进程创建地板）、Odin 完整提示符最快、C3 产物最小但启动最慢</b>。三者差距都在“几毫秒”量级，且都能通过<b>减少依赖 DLL</b> 或 <b>调整子进程创建标志</b>来抹平——真正决定性能的是运行时/标准库的默认选择，而不是语言语法。
+</div>
+
+<h3>选型建议</h3>
+<ul>
+  <li>把 <code>bash_prompt</code> 这种<b>每次回车都要跑一遍</b>的工具当目标时，启动延迟最值钱：优先选 <b>Zig</b>（启动最快），并确认子进程创建标志是否可关掉 <code>CREATE_NO_WINDOW</code>。</li>
+  <li>如果工作负载本身就重（要频繁跑 <code>git</code> 等外部命令），<b>Odin</b> 在这里的整体表现最好，代码也最短。</li>
+  <li><b>C3</b> 的强项是体积与高层标准库（路径/JSON/字符串），但对“启动敏感”的 CLI，需要注意它默认会链上 UCRT 与 <code>dbghelp</code>；若要紧，考虑裁剪调试符号支持。</li>
+  <li>三者都能编译成零 GC 原生程序，用任意一个做这类工具都完全合格——差异是工程权衡，不是可行性问题。</li>
+</ul>
+
+<h2>附录：复现</h2>
+<pre><code># 1) 构建四个待测程序
+c3c compile -D RELEASE -O2 -g0 -o dist/bp_c3.exe bash_prompt.c3 cmd.c3
+c3c compile-only bash_prompt.c3 cmd.c3 --target mingw-x64 --single-module=yes -O3
+zig cc -o dist/bp_c3_mingw.exe -O3 -g0 -Wl,--gc-sections -flto -nostdlib++ \
+    ./obj/mingw-x64/bash_prompt.obj -ldbghelp -lshlwapi
+odin build bash_prompt.odin -file -o:size -disable-assert -no-bounds-check -no-type-assert -out:dist/bp_odin.exe
+zig build-exe -OReleaseFast -femit-bin=dist/bp_zig.exe bash_prompt.zig
+
+# 2) 原生计时 harness（关键：flags=0，不要用 CREATE_NO_WINDOW）
+#    CreateProcessW + QueryPerformanceCounter，warmup 30，采样 500 次，std* → NUL
+./benchf.exe 500 "C:\path\no-git-dir"  "Z:\...\dist\bp_zig.exe" --help
+./benchf.exe 500 "C:\path\git-repo"    "Z:\...\dist\bp_odin.exe"
+
+# 3) 看依赖 DLL（解释启动差异）
+objdump -p dist/bp_c3.exe         | grep "DLL Name"
+objdump -p dist/bp_odin.exe       | grep "DLL Name"
+objdump -p dist/bp_zig.exe        | grep "DLL Name"</code></pre>
+
+<footer>
+  环境：Windows 11 专业版 · Intel Core i7-12650H · C3 0.8.4 · Odin dev-2026-09-nightly (a2fb372) · Zig 0.17.0。
+  计时为单次「创建+退出」的墙钟中位数，量级仅数毫秒，绝对值受终端会话与杀软影响，<b>请以相对排序为准</b>。<br>
+  生成日期 2026-10-12 · 仓库 <code>cli4win</code> @ <code>4685afb</code>。
+</footer>
+
+</div>
+</body>
+</html>
