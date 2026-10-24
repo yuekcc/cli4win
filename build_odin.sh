@@ -2,6 +2,8 @@
 
 set -ex
 
+mkdir -p dist
+
 # Smallest binary: -o:size optimizes for code size, and the remaining flags drop
 # the runtime checks (asserts, bounds checks, type asserts) a release CLI does
 # not need. On this target neither -lto (grows the binary) nor -no-crt
