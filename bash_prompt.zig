@@ -1,8 +1,9 @@
 //! bash_prompt - a PROMPT_COMMAND for bash on Windows and Linux.
 //!
 //! Zig rewrite of bash_prompt.c3. Prints the current directory (optionally
-//! shortened), the git branch and the number of changed files, using
-//! platform-native line endings (CRLF on Windows, LF on Linux).
+//! shortened) and the git branch, plus the number of changed files when
+//! `--git` is given, using platform-native line endings (CRLF on Windows, LF
+//! on Linux).
 //!
 //! Build with Zig 0.17.0 (no build.zig):
 //!   zig build-exe -OReleaseFast -femit-bin=dist/bash_prompt.exe bash_prompt.zig
@@ -64,6 +65,7 @@ const HELP_TEXT = textMode(
     "bash_prompt, a PROMPT_COMMAND\n" ++
         "flags:\n" ++
         "\t--short: enable short dir name\n" ++
+        "\t--git: show changed file count (spawns git status)\n" ++
         "\t--venv: show BP_ENV_XXX for multi version programs\n" ++
         "\t--init: print init script. To quick setup, run: bash_prompt --init >> ~/.bashrc\n" ++
         "\t--help: print this message\n",
@@ -76,6 +78,7 @@ const INIT_SUFFIX = textMode(" --short --venv\"; export PROMPT_COMMAND; PS1=\"\\
 
 const Flags = struct {
     use_short_name: bool = false,
+    show_git: bool = false,
     show_env_xxx: bool = false,
     show_init: bool = false,
     show_help: bool = false,
@@ -88,6 +91,7 @@ const Flags = struct {
 /// change here.
 const flag_specs = .{
     .{ .name = "--short", .field = "use_short_name" },
+    .{ .name = "--git", .field = "show_git" },
     .{ .name = "--venv", .field = "show_env_xxx" },
     .{ .name = "--init", .field = "show_init" },
     .{ .name = "--help", .field = "show_help" },
@@ -143,7 +147,7 @@ fn run(init: std.process.Init) !u8 {
     try out.appendSlice(allocator, NEW_LINE);
 
     try printCwd(&out, allocator, cwd, home, flag.use_short_name);
-    try printGit(&out, io, allocator, cwd);
+    try printGit(&out, io, allocator, cwd, flag.show_git);
 
     if (flag.show_env_xxx) {
         try printEnvXxx(&out, allocator, init.environ_map);
@@ -256,13 +260,15 @@ fn firstCodepoint(s: []const u8) []const u8 {
     return s[0..@min(@as(usize, seq_len), s.len)];
 }
 
-/// Print the git suffix: ` @ <branch>` in yellow, and ` <N>` in red when
-/// there are changed files. Prints nothing when `cwd` is not in a repo.
+/// Print the git suffix: ` @ <branch>` in yellow. The changed-file count ` <N>`
+/// in red is only computed when `show_changes` is set, because it spawns
+/// `git status --porcelain`. Prints nothing when `cwd` is not in a repo.
 fn printGit(
     out: *std.ArrayList(u8),
     io: Io,
     allocator: Allocator,
     cwd: []const u8,
+    show_changes: bool,
 ) !void {
     const root = (try findGitRoot(io, allocator, cwd)) orelse return;
 
@@ -270,11 +276,13 @@ fn printGit(
     try out.appendSlice(allocator, " @ ");
     try appendStyled(out, allocator, Ansi.yellow, branch);
 
-    const changed = try fileChanges(io, allocator, root);
-    if (changed > 0) {
-        var num_buf: [32]u8 = undefined;
-        const suffix = std.fmt.bufPrint(&num_buf, " <{d}>", .{changed}) catch unreachable;
-        try appendStyled(out, allocator, Ansi.red, suffix);
+    if (show_changes) {
+        const changed = try fileChanges(io, allocator, root);
+        if (changed > 0) {
+            var num_buf: [32]u8 = undefined;
+            const suffix = std.fmt.bufPrint(&num_buf, " <{d}>", .{changed}) catch unreachable;
+            try appendStyled(out, allocator, Ansi.red, suffix);
+        }
     }
 }
 

@@ -3,6 +3,7 @@
 **bash_prompt**
 
 Bash shell 提示符，显示路径、git 分支、代码修改量。支持 windows 和 linux。有 c3、zig 和 odin 三个实现。
+三个实现默认都不统计修改量（省掉每条提示符一次 `git status`），加 `--git` 才统计。
 
 **open**
 

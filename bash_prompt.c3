@@ -146,7 +146,7 @@ fn void print_env_xxx(DString* out, ZString* environ)
 	}
 }
 
-fn void print_git(DString* out, Path cwd)
+fn void print_git(DString* out, Path cwd, bool show_changes)
 {
 	Repo repo  = { };
 	bool ready = repo.try_init(tmem, cwd) ?? false;
@@ -157,10 +157,15 @@ fn void print_git(DString* out, Path cwd)
 
 	out.appendf(" @ " +++ style(Ansi.YELLOW, "%s"), repo.branch_name(tmem));
 
-	sz changed_files = repo.file_changes();
-	if (changed_files > 0)
+	// Counting changed files spawns `git status --porcelain`, so it is opt-in:
+	// only run it when `--git` was given.
+	if (show_changes)
 	{
-		out.appendf(style(Ansi.RED, " <%d>"), changed_files);
+		sz changed_files = repo.file_changes();
+		if (changed_files > 0)
+		{
+			out.appendf(style(Ansi.RED, " <%d>"), changed_files);
+		}
 	}
 }
 
@@ -238,6 +243,7 @@ fn void print_cwd(DString* out, Path cwd, bool use_short_name)
 struct CommandLineFlag
 {
 	bool use_short_name;
+	bool show_git;
 	bool show_env_xxx;
 	bool show_init;
 	bool show_help;
@@ -259,6 +265,11 @@ fn CommandLineFlag* CommandLineFlag.init(&self, ZString* argv)
 		if (flag == "--short")
 		{
 			self.use_short_name = true;
+			continue;
+		}
+		else if (flag == "--git")
+		{
+			self.show_git = true;
 			continue;
 		}
 		else if (flag == "--venv")
@@ -292,6 +303,7 @@ fn int _main(int argc, ZString* argv, ZString* environ) @export("main")
 		io::printn(
 			"bash_prompt, a PROMPT_COMMAND\nflags:\n"
 				+++ "\t--short: enable short dir name\n"
+				+++ "\t--git: show changed file count (spawns git status)\n"
 				+++ "\t--venv: show BP_ENV_XXX for multi version programs\n"
 				+++ "\t--init: print init script. To quick setup, run: bash_prompt --init >> ~/.bashrc\n"
 				+++ "\t--help: print this message"
@@ -312,7 +324,7 @@ fn int _main(int argc, ZString* argv, ZString* environ) @export("main")
 		buf.append(NEW_LINE);
 
 		print_cwd(&buf, cwd, flag.use_short_name);
-		print_git(&buf, cwd);
+		print_git(&buf, cwd, flag.show_git);
 
 		if (flag.show_env_xxx)
 		{

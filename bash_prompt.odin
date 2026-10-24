@@ -1,9 +1,11 @@
 //! bash_prompt - a PROMPT_COMMAND for bash on Windows and Linux.
 //!
 //! Odin rewrite of bash_prompt.c3. Prints the current directory (optionally
-//! shortened), the git branch and the number of changed files, using
-//! platform-native line endings: "\r\n" on Windows (the C3 original relies on
-//! the CRT's text mode, which widens every "\n" for `fwrite`) and "\n" on
+//! shortened) and the git branch. The number of changed files is only shown
+//! with `--git`, since counting it costs a `git status` subprocess.
+//!
+//! Line endings are platform-native: "\r\n" on Windows (the C3 original relies
+//! on the CRT's text mode, which widens every "\n" for `fwrite`) and "\n" on
 //! POSIX, where text and binary modes are identical.
 //!
 //! Build (smallest binary):
@@ -47,6 +49,7 @@ ANSI :: Ansi {
 HELP_TEXT :: "bash_prompt, a PROMPT_COMMAND" + NEW_LINE +
 	"flags:" + NEW_LINE +
 	"\t--short: enable short dir name" + NEW_LINE +
+	"\t--git: show changed file count (spawns git status)" + NEW_LINE +
 	"\t--venv: show BP_ENV_XXX for multi version programs" + NEW_LINE +
 	"\t--init: print init script. To quick setup, run: bash_prompt --init >> ~/.bashrc" + NEW_LINE +
 	"\t--help: print this message"
@@ -58,6 +61,7 @@ INIT_SUFFIX :: " --short --venv\"; export PROMPT_COMMAND; PS1=\"\\$ \";"
 
 CommandLineFlag :: struct {
 	use_short_name: bool,
+	show_git:       bool,
 	show_env_xxx:   bool,
 	show_init:      bool,
 	show_help:      bool,
@@ -76,6 +80,8 @@ parse_flags :: proc(argv: []string) -> CommandLineFlag {
 		switch arg {
 		case "--short":
 			flag.use_short_name = true
+		case "--git":
+			flag.show_git = true
 		case "--venv":
 			flag.show_env_xxx = true
 		case "--init":
@@ -118,7 +124,7 @@ main :: proc() {
 
 	strings.write_string(&out, NEW_LINE)
 	print_cwd(&out, cwd, flag.use_short_name)
-	print_git(&out, cwd)
+	print_git(&out, cwd, flag.show_git)
 	if flag.show_env_xxx {
 		environ, _ := os.environ(context.allocator)
 		print_env_xxx(&out, environ)
@@ -142,9 +148,11 @@ print_cwd :: proc(out: ^strings.Builder, cwd: string, use_short_name: bool) {
 	append_styled(out, ANSI.BLUE + ANSI.BOLD, view)
 }
 
-// Print the git suffix: ` @ <branch>` in yellow, and ` <N>` in red when there
-// are changed files. Prints nothing when cwd is not inside a repo.
-print_git :: proc(out: ^strings.Builder, cwd: string) {
+// Print the git suffix: ` @ <branch>` in yellow. The changed-file count ` <N>`
+// in red is only computed when `show_changes` is set, because it spawns
+// `git status --porcelain`; reading the branch from `.git/HEAD` is a plain file
+// read and stays on by default. Prints nothing when cwd is not inside a repo.
+print_git :: proc(out: ^strings.Builder, cwd: string, show_changes: bool) {
 	root, found := find_git_root(cwd)
 	if !found {
 		return
@@ -153,10 +161,12 @@ print_git :: proc(out: ^strings.Builder, cwd: string) {
 	strings.write_string(out, " @ ")
 	append_styled(out, ANSI.YELLOW, branch_name(root))
 
-	changed := file_changes(root)
-	if changed > 0 {
-		num_buf: [32]u8
-		append_styled(out, ANSI.RED, fmt.bprintf(num_buf[:], " <%d>", changed))
+	if show_changes {
+		changed := file_changes(root)
+		if changed > 0 {
+			num_buf: [32]u8
+			append_styled(out, ANSI.RED, fmt.bprintf(num_buf[:], " <%d>", changed))
+		}
 	}
 }
 
