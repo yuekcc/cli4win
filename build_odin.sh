@@ -12,3 +12,9 @@ FLAGS=(-o:speed -disable-assert -no-bounds-check -no-type-assert)
 
 echo Build bash_prompt
 odin build bash_prompt.odin -file "${FLAGS[@]}" -out:dist/bash_prompt.exe
+
+echo Build open
+odin build open.odin -file "${FLAGS[@]}" -out:dist/open.exe
+
+echo Build launch
+odin build launch.odin -file "${FLAGS[@]}" -out:dist/launch.exe
