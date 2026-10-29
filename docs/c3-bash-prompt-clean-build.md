@@ -123,12 +123,12 @@ ERROR: 'Unhandled exception (80000003) at 0x...'
 
 ```sh
 # 干净构建（约 133 KB，2 + 8 条系统依赖，跑得起来）
-sh build_bash_prompt_mingw64.sh
+sh c3/build_bash_prompt_mingw64.sh
 
 # 看依赖
 objdump -p dist/bash_prompt.exe | grep "DLL Name"
 
 # 对照：MSVC/调试构建会多出调试 CRT
-c3c compile -O2 -g0 -o /tmp/raw bash_prompt.c3 cmd.c3
+c3c compile -O2 -g0 -o /tmp/raw c3/bash_prompt.c3 c3/cmd.c3
 objdump -p /tmp/raw | grep "DLL Name"   # 含 ucrtbased/VCRUNTIME140D
 ```

@@ -90,7 +90,7 @@
     <li>三份实现功能等价，我实测在同一目录下输出<b>逐字节一致</b>（同样的 ANSI 颜色、同样的 CRLF、同样的 <code>--init</code> 文本），只有可执行文件名不同。这是一个非常干净的对照样本。</li>
     <li><b>代码量</b>：只看提示符本体，Odin 最短（纯代码 220 行）&lt; C3（241）&lt; Zig（267）；C3 另需 52 行 <code>cmd.c3</code>——因为 std 的 <code>run_capture_stdout</code> 是先 <code>join</code> 再单次读，会短读、输出过大还会死锁，得自己写一份边跑边读、不限长度的。差距主要来自「分配器样板 + 错误处理样板」。</li>
     <li><b>三种风格清晰可分</b>：C3 = 高层语法糖 + 隐式内存，代码短但行为藏得多；Odin = 隐式 <code>context.allocator</code> + 内置子进程，最平衡；Zig = 一切显式 + 最强 comptime，最可预测也最啰嗦。</li>
-    <li>这三份代码里我找到<b>三个值得注意的细节</b>：C3 的越界读 <code>xs[1]</code>、C3 取首字符会切断 UTF-16 代理对、以及 <code>build_odin.sh</code> 注释与参数不一致——见第 6 节。</li>
+    <li>这三份代码里我找到<b>三个值得注意的细节</b>：C3 的越界读 <code>xs[1]</code>、C3 取首字符会切断 UTF-16 代理对、以及 <code>odin/build.sh</code> 注释与参数不一致——见第 6 节。</li>
   </ul>
 </div>
 
@@ -445,11 +445,11 @@ if (use_short_name) {
 <div>
 <div class="lang c3">C3</div>
 <pre><code>c3c compile -D RELEASE -O2 -g0 \
-    -o dist/bash_prompt bash_prompt.c3 cmd.c3</code></pre>
+    -o dist/bash_prompt c3/bash_prompt.c3 c3/cmd.c3</code></pre>
 </div>
 <div>
 <div class="lang odin">Odin</div>
-<pre><code>odin build bash_prompt.odin -file \
+<pre><code>odin build odin/bash_prompt.odin -file \
     -o:speed -disable-assert \
     -no-bounds-check -no-type-assert \
     -out:dist/bash_prompt.exe</code></pre>
@@ -458,7 +458,7 @@ if (use_short_name) {
 <div class="lang zig">Zig</div>
 <pre><code>zig build-exe -OReleaseFast \
     -femit-bin=dist/bash_prompt.exe \
-    bash_prompt.zig</code></pre>
+    zig/bash_prompt.zig</code></pre>
 </div>
 </div>
 
@@ -520,7 +520,7 @@ if (xs.len &gt; 0) {
 </div>
 
 <div class="callout note">
-  <b>③ <code>build_odin.sh</code> 的注释与参数不一致。</b> 注释写着「<code>-o:size</code> … <code>-o:size</code> is smaller than <code>-o:speed</code>」，但实际 <code>FLAGS</code> 用的是 <code>-o:speed</code>。我两种都编了：<code>-o:size</code> = 406 KB，<code>-o:speed</code> = 447 KB——注释是对的，脚本大概改过但没同步注释。属于小疏漏，但正好说明「注释也会和代码一起漂移」。
+  <b>③ <code>odin/build.sh</code> 的注释与参数不一致。</b> 注释写着「<code>-o:size</code> … <code>-o:size</code> is smaller than <code>-o:speed</code>」，但实际 <code>FLAGS</code> 用的是 <code>-o:speed</code>。我两种都编了：<code>-o:size</code> = 406 KB，<code>-o:speed</code> = 447 KB——注释是对的，脚本大概改过但没同步注释。属于小疏漏，但正好说明「注释也会和代码一起漂移」。
 </div>
 
 <h2 id="s7">7. 综合评分与选型</h2>
@@ -550,10 +550,10 @@ if (xs.len &gt; 0) {
 
 <h2>附录：复现命令</h2>
 <pre><code># 1) 三种实现分别编译
-c3c compile -D RELEASE -O2 -g0 -o tmp/bp_c3 bash_prompt.c3 cmd.c3
-odin build bash_prompt.odin -file -o:speed -disable-assert \
+c3c compile -D RELEASE -O2 -g0 -o tmp/bp_c3 c3/bash_prompt.c3 c3/cmd.c3
+odin build odin/bash_prompt.odin -file -o:speed -disable-assert \
     -no-bounds-check -no-type-assert -out:tmp/bp_odin.exe
-zig build-exe -OReleaseFast -femit-bin=tmp/bp_zig.exe bash_prompt.zig
+zig build-exe -OReleaseFast -femit-bin=tmp/bp_zig.exe zig/bash_prompt.zig
 
 # 2) 验证输出一致（应逐字节相同，仅 --init 里的文件名不同）
 tmp/bp_c3 --short | cat -v

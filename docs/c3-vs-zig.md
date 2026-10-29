@@ -252,21 +252,21 @@ extern "shell32" fn ShellExecuteW(
 **C3**：多文件模块自动串联，直接编译：
 
 ```sh
-c3c compile -D RELEASE -O2 -g0 -o dist/open open.c3 win.c3
-c3c compile -D RELEASE -O2 -g0 -o dist/bash_prompt bash_prompt.c3 cmd.c3
+c3c compile -D RELEASE -O2 -g0 -o dist/open c3/open.c3 c3/win.c3
+c3c compile -D RELEASE -O2 -g0 -o dist/bash_prompt c3/bash_prompt.c3 c3/cmd.c3
 ```
 
 **Zig**：裸 `zig build-exe`（本项目没有 `build.zig`），依赖文件当源码传入，系统库手动 `-l`：
 
 ```sh
-zig build-exe -OReleaseFast -femit-bin=dist/open.exe open.zig -lshell32 -lshlwapi
-zig build-exe -OReleaseFast -femit-bin=dist/bash_prompt.exe bash_prompt.zig
+zig build-exe -OReleaseFast -femit-bin=dist/open.exe zig/open.zig -lshell32 -lshlwapi
+zig build-exe -OReleaseFast -femit-bin=dist/bash_prompt.exe zig/bash_prompt.zig
 ```
 
 C3 还提供了「编译到目标文件再交给 `zig cc` 链接」的混编路径：
 
 ```sh
-c3c compile-only bash_prompt.c3 cmd.c3 --target mingw-x64 --single-module=yes -O3
+c3c compile-only c3/bash_prompt.c3 c3/cmd.c3 --target mingw-x64 --single-module=yes -O3
 zig cc -o $OUTPUT -O3 -g0 -Wl,--gc-sections -flto -nostdlib++ \
     ./obj/mingw-x64/bash_prompt.obj -ldbghelp -lshlwapi
 ```
@@ -616,5 +616,5 @@ grep -ohE 'std\.[a-zA-Z.]+' *.zig | sort | uniq -c | sort -rn
 | 配置启动器 | `launch.c3` | `launch.zig` |
 | Shell 提示符 | `bash_prompt.c3` | `bash_prompt.zig` |
 | 子进程封装 | `cmd.c3` | `std.process.run` |
-| 构建脚本 | `build.sh` | `build_zig.sh` |
-| 混编示例 | `build_bash_prompt_mingw64.sh` | — |
+| 构建脚本 | `c3/build.sh` | `zig/build.sh` |
+| 混编示例 | `c3/build_bash_prompt_mingw64.sh` | — |
