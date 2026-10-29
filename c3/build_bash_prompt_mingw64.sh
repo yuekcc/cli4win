@@ -13,17 +13,25 @@
 # Resulting imports are verified below. See docs/c3-bash-prompt-clean-build.md.
 #
 # Requires: c3c, Zig (zig cc), and a POSIX shell (Git for Windows).
+# The script may be called from any directory: it switches to its own directory
+# first, writes the object file to <repo>/obj and the binary to <repo>/dist.
 
 set -e
 
-OUTPUT=dist/bash_prompt.exe
-OBJ=./obj/mingw-x64/bash_prompt.obj
+cd "$(dirname "$0")"
+mkdir -p ../dist ../obj/mingw-x64
+
+OUTPUT=../dist/bash_prompt.exe
+OBJ=../obj/mingw-x64/bash_prompt.obj
 
 # -Oz: optimize for size (bash_prompt runs on every prompt, so start-up and
 #      file size matter more than raw throughput). -g0 keeps debug info out.
+# --obj-out keeps the object in <repo>/obj/mingw-x64 instead of ./obj next to
+# this script. Note that it does NOT append the target subdirectory itself, so
+# the full path (including mingw-x64) has to be given.
 echo "== Compile (c3c -> object) =="
 c3c compile-only bash_prompt.c3 cmd.c3 \
-	--target mingw-x64 --single-module=yes -Oz -g0
+	--target mingw-x64 --single-module=yes -Oz -g0 --obj-out ../obj/mingw-x64
 
 # NOTE: do NOT add -municode here. c3c emits a plain `main` entry and provides
 # its own C3 start-up; -municode makes the MinGW CRT call `wmain`, which does
