@@ -13,7 +13,7 @@
 //!   }
 //!
 //! Build with Zig 0.17.0 (no build.zig):
-//!   zig build-exe -OReleaseFast -femit-bin=dist/launch.exe launch.zig -lshell32 -lshlwapi
+//!   zig build-exe -OReleaseFast -femit-bin=../dist/launch.exe launch.zig -lshell32 -lshlwapi
 
 const std = @import("std");
 const win = @import("win.zig");

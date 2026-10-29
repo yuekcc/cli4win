@@ -6,7 +6,7 @@
 //! on Linux).
 //!
 //! Build with Zig 0.17.0 (no build.zig):
-//!   zig build-exe -OReleaseFast -femit-bin=dist/bash_prompt.exe bash_prompt.zig
+//!   zig build-exe -OReleaseFast -femit-bin=../dist/bash_prompt.exe bash_prompt.zig
 
 const std = @import("std");
 const builtin = @import("builtin");
