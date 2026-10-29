@@ -21,12 +21,12 @@ GIT=${GIT:-$(git rev-parse --show-toplevel 2>/dev/null || echo .)}
 mkdir -p "$NOGIT"
 
 echo "== Build =="
-c3c compile -D RELEASE -O2 -g0 -o "$DIST/bp_c3.exe" bash_prompt.c3 cmd.c3
-c3c compile-only bash_prompt.c3 cmd.c3 --target mingw-x64 --single-module=yes -O3
+c3c compile -D RELEASE -O2 -g0 -o "$DIST/bp_c3.exe" c3/bash_prompt.c3 c3/cmd.c3
+c3c compile-only c3/bash_prompt.c3 c3/cmd.c3 --target mingw-x64 --single-module=yes -O3
 zig cc -o "$DIST/bp_c3_mingw.exe" -O3 -g0 -Wl,--gc-sections \
 	./obj/mingw-x64/bash_prompt.obj -ldbghelp
-odin build bash_prompt.odin -file -o:size -disable-assert -no-bounds-check -no-type-assert -out:"$DIST/bp_odin.exe"
-zig build-exe -OReleaseFast -femit-bin="$DIST/bp_zig.exe" bash_prompt.zig
+odin build odin/bash_prompt.odin -file -o:size -disable-assert -no-bounds-check -no-type-assert -out:"$DIST/bp_odin.exe"
+zig build-exe -OReleaseFast -femit-bin="$DIST/bp_zig.exe" zig/bash_prompt.zig
 
 echo "== Run ($ITERS iters each) =="
 # Windows paths for the harness.
