@@ -5,8 +5,8 @@
 # Builds the four bash_prompt ports, then times process startup with the native
 # harness (CreateProcessW + QueryPerformanceCounter, flags=0, std* -> NUL).
 #
-# The harness (benchf.c / benchf.exe) lives next to this file; build it with:
-#     zig cc -o benchf.exe benchf.c
+# The harness source (benchf.c) lives next to this file; the exe is built on
+# demand below if missing (it is a build artifact, not checked in).
 #
 # Usage: sh bench.sh [iterations]
 set -e
@@ -15,18 +15,28 @@ ITERS=${1:-500}
 DIST=dist
 HARNESS=$(dirname "$0")/benchf.exe
 
+# Build the harness if it is absent or older than its source.
+if [ ! -x "$HARNESS" ] || [ benchf.c -nt "$HARNESS" ]; then
+	echo "== Build harness =="
+	zig cc -o "$HARNESS" benchf.c
+	rm -f "${HARNESS%.exe}.pdb"
+fi
+
 # git cwd is any working tree; no-git cwd must not be inside one.
 NOGIT=${NOGIT:-$(mktemp -d 2>/dev/null || echo /tmp/bpbench-nogit)}
 GIT=${GIT:-$(git rev-parse --show-toplevel 2>/dev/null || echo .)}
 mkdir -p "$NOGIT"
 
 echo "== Build =="
-c3c compile -D RELEASE -O2 -g0 -o "$DIST/bp_c3.exe" c3/bash_prompt.c3 c3/cmd.c3
+# c3c appends .exe itself, so -o must not include the extension.
+c3c compile -D RELEASE -O2 -g0 -o "$DIST/bp_c3" c3/bash_prompt.c3 c3/cmd.c3
 c3c compile-only c3/bash_prompt.c3 c3/cmd.c3 --target mingw-x64 --single-module=yes -O3
 zig cc -o "$DIST/bp_c3_mingw.exe" -O3 -g0 -Wl,--gc-sections \
 	./obj/mingw-x64/bash_prompt.obj -ldbghelp
 odin build odin/bash_prompt.odin -file -o:size -disable-assert -no-bounds-check -no-type-assert -out:"$DIST/bp_odin.exe"
 zig build-exe -OReleaseFast -femit-bin="$DIST/bp_zig.exe" zig/bash_prompt.zig
+# The build artifacts above also drop .pdb files; keep the tree clean.
+rm -f "$DIST"/*.pdb
 
 echo "== Run ($ITERS iters each) =="
 # Windows paths for the harness.
