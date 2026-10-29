@@ -1,5 +1,7 @@
 .build
+build
 obj
+out
 *.exe
 *.lib
 *.pdb
@@ -9,3 +11,4 @@ obj
 dist
 
 apikey.txt
+.rpi
